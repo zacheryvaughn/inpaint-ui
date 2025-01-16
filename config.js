@@ -34,7 +34,7 @@ export const CONFIG = {
             OPACITY: 0.2
         },
         BRUSH: {
-            COLOR: '#FF0000', 
+            COLOR: '#FFFFFF', 
             OPACITY: 0.4,
             SIZE: 16
         },

@@ -1,5 +1,5 @@
 # Grid Canvas Starter
-**Try It:** https://zacheryvaughn.github.io/GridCanvasStarter/
+**Try It:** https://zacheryvaughn.github.io/inpaint-ui/
 ___
 **Features:**
 - Centered Origin
@@ -24,4 +24,5 @@ ___
 - One-Finger Touch: Drag Item
 
 ___
-<!-- ![Image](image.png) -->
+![Image](image.png)
+![Image](image2.png)
