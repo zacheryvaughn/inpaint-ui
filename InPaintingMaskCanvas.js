@@ -1,4 +1,4 @@
-import { CONFIG } from '../config.js';
+import { CONFIG } from './config.js';
 
 // Base class for handling canvas state and common functionality
 class CanvasState {
