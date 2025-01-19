@@ -331,20 +331,169 @@ class DraggableImage {
     draw(ctx) {
         if (!this.isLoaded) return;
         
+        // Draw the base image
         ctx.drawImage(this.image, this.x, this.y, this.width, this.height);
         
-        // Draw background mask
-        ctx.save();
-        ctx.globalAlpha = CONFIG.PAINT.BACKGROUND.OPACITY;
-        ctx.fillStyle = CONFIG.PAINT.BACKGROUND.COLOR;
-        ctx.fillRect(this.x, this.y, this.width, this.height);
-        ctx.restore();
-        
-        // Draw paint layer
-        ctx.save();
-        ctx.globalAlpha = CONFIG.PAINT.BRUSH.OPACITY;
-        ctx.drawImage(this.paintCanvas, this.x, this.y);
-        ctx.restore();
+        if (this.canvasState.isPreviewingMask) {
+            // Create preview canvas
+            const previewCanvas = document.createElement('canvas');
+            previewCanvas.width = this.width;
+            previewCanvas.height = this.height;
+            const previewCtx = previewCanvas.getContext('2d');
+
+            // Create white version of paint
+            const whiteCanvas = document.createElement('canvas');
+            whiteCanvas.width = this.width;
+            whiteCanvas.height = this.height;
+            const whiteCtx = whiteCanvas.getContext('2d');
+
+            // Convert paint to white using composite operations
+            whiteCtx.drawImage(this.paintCanvas, 0, 0);
+            whiteCtx.globalCompositeOperation = 'source-in';
+            whiteCtx.fillStyle = '#FFFFFF';
+            whiteCtx.fillRect(0, 0, this.width, this.height);
+
+            // Apply gaussian blur to the white paint layer if enabled
+            if (CONFIG.PAINT.FEATHER.ENABLED && CONFIG.PAINT.FEATHER.RADIUS > 0) {
+                const imageData = whiteCtx.getImageData(0, 0, this.width, this.height);
+                const pixels = imageData.data;
+                const radius = CONFIG.PAINT.FEATHER.RADIUS;
+                const width = this.width;
+                const height = this.height;
+                
+                // Extract alpha channel only (single channel)
+                const alphaChannel = new Uint8Array(width * height);
+                for (let i = 0; i < width * height; i++) {
+                    alphaChannel[i] = pixels[i * 4 + 3];
+                }
+                
+                // Create gaussian kernel using typed array
+                const kernelSize = radius * 2 + 1;
+                const kernel = new Float32Array(kernelSize * kernelSize);
+                const sigma = radius / 3;
+                const twoSigmaSquare = 2 * sigma * sigma;
+                let sum = 0;
+                
+                for (let y = -radius, idx = 0; y <= radius; y++) {
+                    for (let x = -radius; x <= radius; x++, idx++) {
+                        const exp = Math.exp(-(x * x + y * y) / twoSigmaSquare);
+                        kernel[idx] = exp;
+                        sum += exp;
+                    }
+                }
+                
+                // Normalize kernel
+                const scale = 1 / sum;
+                for (let i = 0; i < kernel.length; i++) {
+                    kernel[i] *= scale;
+                }
+                
+                // Create edge detection mask
+                const mask = new Uint8Array(width * height);
+                
+                // Find edges using alpha channel only
+                for (let y = 0; y < height; y++) {
+                    const yOffset = y * width;
+                    for (let x = 0; x < width; x++) {
+                        const idx = yOffset + x;
+                        const hasAlpha = alphaChannel[idx] > 0;
+                        
+                        // Check immediate neighbors only
+                        if (x > 0 && (hasAlpha !== (alphaChannel[idx - 1] > 0))) {
+                            mask[idx] = 1;
+                            continue;
+                        }
+                        if (y > 0 && (hasAlpha !== (alphaChannel[idx - width] > 0))) {
+                            mask[idx] = 1;
+                            continue;
+                        }
+                    }
+                }
+                
+                // Expand processing area around edges
+                const expandedMask = new Uint8Array(width * height);
+                const processingRadius = Math.floor(radius/2 + 5);
+                
+                for (let y = 0; y < height; y++) {
+                    const yOffset = y * width;
+                    for (let x = 0; x < width; x++) {
+                        if (mask[yOffset + x]) {
+                            const startY = Math.max(0, y - processingRadius);
+                            const endY = Math.min(height - 1, y + processingRadius);
+                            const startX = Math.max(0, x - processingRadius);
+                            const endX = Math.min(width - 1, x + processingRadius);
+                            
+                            for (let py = startY; py <= endY; py++) {
+                                const pyOffset = py * width;
+                                for (let px = startX; px <= endX; px++) {
+                                    expandedMask[pyOffset + px] = 1;
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Apply blur only to masked pixels, single channel
+                const blurredAlpha = new Uint8Array(width * height);
+                blurredAlpha.set(alphaChannel); // Copy original alpha
+                
+                for (let y = 0; y < height; y++) {
+                    const yOffset = y * width;
+                    for (let x = 0; x < width; x++) {
+                        if (!expandedMask[yOffset + x]) continue;
+                        
+                        let sum = 0;
+                        let kernelIndex = 0;
+                        
+                        for (let ky = -radius; ky <= radius; ky++) {
+                            const py = Math.min(Math.max(y + ky, 0), height - 1);
+                            const pyOffset = py * width;
+                            
+                            for (let kx = -radius; kx <= radius; kx++) {
+                                const px = Math.min(Math.max(x + kx, 0), width - 1);
+                                sum += alphaChannel[pyOffset + px] * kernel[kernelIndex++];
+                            }
+                        }
+                        
+                        blurredAlpha[yOffset + x] = sum;
+                    }
+                }
+                
+                // Copy blurred alpha back to image data
+                for (let i = 0; i < width * height; i++) {
+                    const rgba = i * 4;
+                    pixels[rgba] = 255;     // White
+                    pixels[rgba + 1] = 255; // White
+                    pixels[rgba + 2] = 255; // White
+                    pixels[rgba + 3] = blurredAlpha[i];
+                }
+                
+                whiteCtx.putImageData(imageData, 0, 0);
+            }
+
+            // Draw black background
+            previewCtx.fillStyle = '#000000';
+            previewCtx.fillRect(0, 0, this.width, this.height);
+
+            // Draw white paint on top
+            previewCtx.drawImage(whiteCanvas, 0, 0);
+
+            // Draw preview
+            ctx.drawImage(previewCanvas, this.x, this.y);
+        } else {
+            // Normal painting mode
+            ctx.save();
+            ctx.globalAlpha = CONFIG.PAINT.BACKGROUND.OPACITY;
+            ctx.fillStyle = CONFIG.PAINT.BACKGROUND.COLOR;
+            ctx.fillRect(this.x, this.y, this.width, this.height);
+            ctx.restore();
+            
+            ctx.save();
+            ctx.globalAlpha = CONFIG.PAINT.BRUSH.OPACITY;
+            ctx.fillStyle = CONFIG.PAINT.BRUSH.COLOR;
+            ctx.drawImage(this.paintCanvas, this.x, this.y);
+            ctx.restore();
+        }
         
         this.drawCoordinates(ctx);
     }
@@ -391,6 +540,23 @@ class PaintManager {
         this.setupSizeControl('eraser');
         this.setupOpacityControl('mask', 'BACKGROUND');
         this.setupOpacityControl('brush', 'BRUSH');
+        this.setupFeatherControl();  // Add this line
+    }
+    
+    setupFeatherControl() {
+        const slider = document.getElementById('featherAmount');
+        const value = document.getElementById('featherAmountValue');
+        
+        slider.value = CONFIG.PAINT.FEATHER.RADIUS;
+        value.textContent = CONFIG.PAINT.FEATHER.RADIUS;
+        
+        slider.addEventListener('input', (e) => {
+            const radius = parseInt(e.target.value);
+            CONFIG.PAINT.FEATHER.RADIUS = radius;
+            CONFIG.PAINT.FEATHER.ENABLED = radius > 0;
+            value.textContent = radius;
+            this.canvasState.scheduleRedraw();
+        });
     }
 
     setupSizeControl(tool) {
@@ -615,9 +781,12 @@ class InteractiveCanvas extends CanvasState {
         this.dragOffset = { x: 0, y: 0 };
         this.paintManager = new PaintManager(this);
         this.currentTool = 'move';
+        this.isPreviewingMask = false;
+        this.originalConfig = null;  // Store original config values
         
         this.setupImageImport();
         this.setupToolSelection();
+        this.setupPreviewButton();  // Add this line
     }
 
     setupImageImport() {
@@ -660,6 +829,45 @@ class InteractiveCanvas extends CanvasState {
         buttons[selectedTool].classList.add('selected');
         this.currentTool = selectedTool;
         this.paintManager.setTool(selectedTool);
+    }
+
+    // Add this new method
+    setupPreviewButton() {
+        const previewButton = document.getElementById('preview-mask');
+        previewButton.addEventListener('mousedown', () => {
+            // Store original values
+            this.originalConfig = {
+                backgroundOpacity: CONFIG.PAINT.BACKGROUND.OPACITY,
+                brushOpacity: CONFIG.PAINT.BRUSH.OPACITY,
+                brushColor: CONFIG.PAINT.BRUSH.COLOR,
+                backgroundColor: CONFIG.PAINT.BACKGROUND.COLOR
+            };
+            
+            // Set preview values
+            CONFIG.PAINT.BACKGROUND.OPACITY = 1.0;
+            CONFIG.PAINT.BRUSH.OPACITY = 1.0;
+            CONFIG.PAINT.BRUSH.COLOR = '#FFFFFF';
+            CONFIG.PAINT.BACKGROUND.COLOR = '#000000';
+            
+            this.isPreviewingMask = true;
+            this.scheduleRedraw();
+        });
+        
+        const resetPreview = () => {
+            if (this.originalConfig) {
+                // Restore original values
+                CONFIG.PAINT.BACKGROUND.OPACITY = this.originalConfig.backgroundOpacity;
+                CONFIG.PAINT.BRUSH.OPACITY = this.originalConfig.brushOpacity;
+                CONFIG.PAINT.BRUSH.COLOR = this.originalConfig.brushColor;
+                CONFIG.PAINT.BACKGROUND.COLOR = this.originalConfig.backgroundColor;
+                this.originalConfig = null;
+            }
+            this.isPreviewingMask = false;
+            this.scheduleRedraw();
+        };
+        
+        previewButton.addEventListener('mouseup', resetPreview);
+        previewButton.addEventListener('mouseleave', resetPreview);
     }
 
     handleMouseDown(e) {

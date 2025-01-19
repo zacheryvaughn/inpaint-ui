@@ -34,7 +34,7 @@ export const CONFIG = {
             OPACITY: 0.2
         },
         BRUSH: {
-            COLOR: '#FFFFFF', 
+            COLOR: '#FF0000', 
             OPACITY: 0.4,
             SIZE: 16
         },
@@ -44,8 +44,7 @@ export const CONFIG = {
         SMOOTHING_FACTOR: 8,
         FEATHER: {
             ENABLED: true,
-            RADIUS: 20,
-            UPDATE_DELAY: 16
+            RADIUS: 20
         }
     }
 };
