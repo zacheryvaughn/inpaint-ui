@@ -1,7 +1,17 @@
-# Grid Canvas Starter
+# InPaint UI (Canvas for Creating InPainting Masks)
 **Try It:** https://zacheryvaughn.github.io/inpaint-ui/
 ___
-**Features:**
+**Masking Features:**
+- Import Images (can work with multiple at the same time)
+- Paint and Erase Mask Area
+- Adjust Mask Opacity
+- Preview Mask Product (0-3 seconds to process)
+- Feather Mask Edge
+- Adjust Feather Offset (from fully inset to fully outset)
+- Invert Mask (at export and preview)
+- Export Mask Image (mask that was most recently touched)
+___
+**Canvas Features:**
 - Centered Origin
 - Dynamic Gridlines
 - Canvas Drag-Panning
@@ -10,18 +20,11 @@ ___
 - Auto Z-Index Swapping
 
 ___
-**Mouse Controls:**
+**Canvas Mouse Controls:**
 - Scroll Wheel: Zoom Canvas
 - Hold Right Mouse Button: Move Canvas
 - Click Scroll Wheel Button: Re-Center Canvas
 - Hold Left Mouse Button: Drag Item
-
-___
-**Touch Gestures:**
-- Two-Finger Pinch: Zoom Canvas
-- Two-Finger Touch: Move Canvas
-- Double-Tap: Re-Center Canvas
-- One-Finger Touch: Drag Item
 
 ___
 ![Image](image.png)
