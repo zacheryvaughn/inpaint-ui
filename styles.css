@@ -235,3 +235,25 @@ input[type="range"]::-moz-range-track {
   width: 100%;
   height: calc(100% - 50px);
 }
+
+footer {
+  position: absolute;
+  left: 10px;
+  bottom: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+footer h1 {
+  color: var(--shade-400);
+  font-weight: 900;
+  font-size: 18px;
+}
+
+footer p {
+  color: var(--shade-600);
+  font-weight: 200;
+  font-size: 14px;
+}
