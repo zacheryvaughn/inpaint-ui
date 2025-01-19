@@ -395,36 +395,54 @@ class DraggableImage {
                     kernel[i] *= scale;
                 }
                 
-                // Create edge detection mask
-                const mask = new Uint8Array(width * height);
+                // Create gradient mask for smooth transitions
+                const gradientMask = new Float32Array(width * height);
                 
-                // Find edges using alpha channel only
+                // Find edges and create gradient
                 for (let y = 0; y < height; y++) {
                     const yOffset = y * width;
                     for (let x = 0; x < width; x++) {
                         const idx = yOffset + x;
-                        const hasAlpha = alphaChannel[idx] > 0;
+                        const currentAlpha = alphaChannel[idx];
                         
-                        // Check immediate neighbors only
-                        if (x > 0 && (hasAlpha !== (alphaChannel[idx - 1] > 0))) {
-                            mask[idx] = 1;
-                            continue;
+                        // Skip if pixel is completely transparent or opaque
+                        if (currentAlpha === 0 || currentAlpha === 255) continue;
+                        
+                        // Calculate gradient based on alpha differences with neighbors
+                        let maxGradient = 0;
+                        
+                        // Check 8 neighboring pixels
+                        for (let dy = -1; dy <= 1; dy++) {
+                            const ny = y + dy;
+                            if (ny < 0 || ny >= height) continue;
+                            
+                            const nyOffset = ny * width;
+                            for (let dx = -1; dx <= 1; dx++) {
+                                if (dx === 0 && dy === 0) continue;
+                                
+                                const nx = x + dx;
+                                if (nx < 0 || nx >= width) continue;
+                                
+                                const neighborIdx = nyOffset + nx;
+                                const alphaDiff = Math.abs(currentAlpha - alphaChannel[neighborIdx]);
+                                maxGradient = Math.max(maxGradient, alphaDiff);
+                            }
                         }
-                        if (y > 0 && (hasAlpha !== (alphaChannel[idx - width] > 0))) {
-                            mask[idx] = 1;
-                            continue;
-                        }
+                        
+                        // Normalize gradient and store
+                        gradientMask[idx] = maxGradient / 255;
                     }
                 }
                 
-                // Expand processing area around edges
-                const expandedMask = new Uint8Array(width * height);
-                const processingRadius = Math.floor(radius/2 + 1);
+                // Expand gradient influence
+                const expandedMask = new Float32Array(width * height);
+                const processingRadius = radius;
                 
                 for (let y = 0; y < height; y++) {
                     const yOffset = y * width;
                     for (let x = 0; x < width; x++) {
-                        if (mask[yOffset + x]) {
+                        const idx = yOffset + x;
+                        if (gradientMask[idx] > 0) {
                             const startY = Math.max(0, y - processingRadius);
                             const endY = Math.min(height - 1, y + processingRadius);
                             const startX = Math.max(0, x - processingRadius);
@@ -433,7 +451,18 @@ class DraggableImage {
                             for (let py = startY; py <= endY; py++) {
                                 const pyOffset = py * width;
                                 for (let px = startX; px <= endX; px++) {
-                                    expandedMask[pyOffset + px] = 1;
+                                    const targetIdx = pyOffset + px;
+                                    const distance = Math.sqrt(
+                                        Math.pow(px - x, 2) + Math.pow(py - y, 2)
+                                    );
+                                    const influence = Math.max(
+                                        0,
+                                        1 - distance / processingRadius
+                                    ) * gradientMask[idx];
+                                    expandedMask[targetIdx] = Math.max(
+                                        expandedMask[targetIdx],
+                                        influence
+                                    );
                                 }
                             }
                         }
@@ -875,6 +904,188 @@ class InteractiveCanvas extends CanvasState {
         
         previewButton.addEventListener('mouseup', resetPreview);
         previewButton.addEventListener('mouseleave', resetPreview);
+
+        // Setup export button
+        const exportButton = document.getElementById('export-operation');
+        exportButton.addEventListener('click', () => {
+            if (this.images.length === 0) return;
+            
+            const image = this.images[this.images.length - 1];
+            
+            // Create preview canvas at natural image dimensions
+            const exportCanvas = document.createElement('canvas');
+            exportCanvas.width = image.image.naturalWidth;
+            exportCanvas.height = image.image.naturalHeight;
+            const exportCtx = exportCanvas.getContext('2d');
+
+            // Create white version of paint at natural image dimensions
+            const whiteCanvas = document.createElement('canvas');
+            whiteCanvas.width = image.image.naturalWidth;
+            whiteCanvas.height = image.image.naturalHeight;
+            const whiteCtx = whiteCanvas.getContext('2d');
+
+            // Convert paint to white using composite operations at raw dimensions
+            whiteCtx.drawImage(image.paintCanvas, 0, 0, image.image.naturalWidth, image.image.naturalHeight);
+            whiteCtx.globalCompositeOperation = 'source-in';
+            whiteCtx.fillStyle = '#FFFFFF';
+            whiteCtx.fillRect(0, 0, image.image.naturalWidth, image.image.naturalHeight);
+
+            // Apply gaussian blur if enabled
+            if (CONFIG.PAINT.FEATHER.ENABLED && CONFIG.PAINT.FEATHER.RADIUS > 0) {
+                const imageData = whiteCtx.getImageData(0, 0, image.image.naturalWidth, image.image.naturalHeight);
+                const pixels = imageData.data;
+                const radius = CONFIG.PAINT.FEATHER.RADIUS;
+                const width = image.image.naturalWidth;
+                const height = image.image.naturalHeight;
+                
+                // Extract alpha channel only (single channel)
+                const alphaChannel = new Uint8Array(width * height);
+                for (let i = 0; i < width * height; i++) {
+                    alphaChannel[i] = pixels[i * 4 + 3];
+                }
+                
+                // Create gaussian kernel using typed array
+                const kernelSize = radius * 2 + 1;
+                const kernel = new Float32Array(kernelSize * kernelSize);
+                const sigma = radius / 3;
+                const twoSigmaSquare = 2 * sigma * sigma;
+                let sum = 0;
+                
+                for (let y = -radius, idx = 0; y <= radius; y++) {
+                    for (let x = -radius; x <= radius; x++, idx++) {
+                        const exp = Math.exp(-(x * x + y * y) / twoSigmaSquare);
+                        kernel[idx] = exp;
+                        sum += exp;
+                    }
+                }
+                
+                // Normalize kernel
+                const scale = 1 / sum;
+                for (let i = 0; i < kernel.length; i++) {
+                    kernel[i] *= scale;
+                }
+                
+                // Create gradient mask for smooth transitions
+                const gradientMask = new Float32Array(width * height);
+                
+                // Find edges and create gradient
+                for (let y = 0; y < height; y++) {
+                    const yOffset = y * width;
+                    for (let x = 0; x < width; x++) {
+                        const idx = yOffset + x;
+                        const currentAlpha = alphaChannel[idx];
+                        
+                        if (currentAlpha === 0 || currentAlpha === 255) continue;
+                        
+                        let maxGradient = 0;
+                        
+                        for (let dy = -1; dy <= 1; dy++) {
+                            const ny = y + dy;
+                            if (ny < 0 || ny >= height) continue;
+                            
+                            const nyOffset = ny * width;
+                            for (let dx = -1; dx <= 1; dx++) {
+                                if (dx === 0 && dy === 0) continue;
+                                
+                                const nx = x + dx;
+                                if (nx < 0 || nx >= width) continue;
+                                
+                                const neighborIdx = nyOffset + nx;
+                                const alphaDiff = Math.abs(currentAlpha - alphaChannel[neighborIdx]);
+                                maxGradient = Math.max(maxGradient, alphaDiff);
+                            }
+                        }
+                        
+                        gradientMask[idx] = maxGradient / 255;
+                    }
+                }
+                
+                // Expand gradient influence
+                const expandedMask = new Float32Array(width * height);
+                const processingRadius = radius;
+                
+                for (let y = 0; y < height; y++) {
+                    const yOffset = y * width;
+                    for (let x = 0; x < width; x++) {
+                        const idx = yOffset + x;
+                        if (gradientMask[idx] > 0) {
+                            const startY = Math.max(0, y - processingRadius);
+                            const endY = Math.min(height - 1, y + processingRadius);
+                            const startX = Math.max(0, x - processingRadius);
+                            const endX = Math.min(width - 1, x + processingRadius);
+                            
+                            for (let py = startY; py <= endY; py++) {
+                                const pyOffset = py * width;
+                                for (let px = startX; px <= endX; px++) {
+                                    const targetIdx = pyOffset + px;
+                                    const distance = Math.sqrt(
+                                        Math.pow(px - x, 2) + Math.pow(py - y, 2)
+                                    );
+                                    const influence = Math.max(
+                                        0,
+                                        1 - distance / processingRadius
+                                    ) * gradientMask[idx];
+                                    expandedMask[targetIdx] = Math.max(
+                                        expandedMask[targetIdx],
+                                        influence
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Apply blur only to masked pixels, single channel
+                const blurredAlpha = new Uint8Array(width * height);
+                blurredAlpha.set(alphaChannel);
+                
+                for (let y = 0; y < height; y++) {
+                    const yOffset = y * width;
+                    for (let x = 0; x < width; x++) {
+                        if (!expandedMask[yOffset + x]) continue;
+                        
+                        let sum = 0;
+                        let kernelIndex = 0;
+                        
+                        for (let ky = -radius; ky <= radius; ky++) {
+                            const py = Math.min(Math.max(y + ky, 0), height - 1);
+                            const pyOffset = py * width;
+                            
+                            for (let kx = -radius; kx <= radius; kx++) {
+                                const px = Math.min(Math.max(x + kx, 0), width - 1);
+                                sum += alphaChannel[pyOffset + px] * kernel[kernelIndex++];
+                            }
+                        }
+                        
+                        blurredAlpha[yOffset + x] = sum;
+                    }
+                }
+                
+                // Copy blurred alpha back to image data
+                for (let i = 0; i < width * height; i++) {
+                    const rgba = i * 4;
+                    pixels[rgba] = 255;     // White
+                    pixels[rgba + 1] = 255; // White
+                    pixels[rgba + 2] = 255; // White
+                    pixels[rgba + 3] = blurredAlpha[i];
+                }
+                
+                whiteCtx.putImageData(imageData, 0, 0);
+            }
+
+            // Draw black background
+            exportCtx.fillStyle = '#000000';
+            exportCtx.fillRect(0, 0, image.width, image.height);
+
+            // Draw white paint on top
+            exportCtx.drawImage(whiteCanvas, 0, 0);
+
+            // Convert to PNG and download
+            const link = document.createElement('a');
+            link.download = 'mask.png';
+            link.href = exportCanvas.toDataURL('image/png');
+            link.click();
+        });
     }
 
     handleMouseDown(e) {
