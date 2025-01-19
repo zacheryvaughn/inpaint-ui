@@ -31,15 +31,15 @@ export const CONFIG = {
     PAINT: {
         BACKGROUND: {
             COLOR: '#000000',
-            OPACITY: 0.2
+            OPACITY: 0.1
         },
         BRUSH: {
             COLOR: '#FF0000', 
             OPACITY: 0.4,
-            SIZE: 16
+            SIZE: 32
         },
         ERASER: {
-            SIZE: 24
+            SIZE: 48
         },
         SMOOTHING_FACTOR: 8,
         FEATHER: {
