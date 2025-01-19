@@ -65,7 +65,7 @@ header {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .toolbar-divider {
@@ -76,7 +76,8 @@ header {
 
 .toolbar-svg {
   fill: var(--shade-400);
-  width: 20px;
+  height: 22px;
+  width: auto;
   flex-shrink: 0;
   transition: fill 0.2s;
 }
