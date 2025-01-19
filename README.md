@@ -29,5 +29,5 @@ ___
 - Hold Left Mouse Button: Drag Item
 
 ___
-![Image](images/image.png)
-![Image](images/image2.png)
+![Image](./images/image.png)
+![Image](./images/image2.png)
