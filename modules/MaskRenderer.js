@@ -13,28 +13,22 @@ export default class MaskRenderer {
     }
 
     renderMask(image, paintCanvas) {
-        // Set canvas dimensions to match the image
         this.previewCanvas.width = image.naturalWidth;
         this.previewCanvas.height = image.naturalHeight;
         this.whiteCanvas.width = image.naturalWidth;
         this.whiteCanvas.height = image.naturalHeight;
-
-        // Convert paint to white using composite operations
         this.whiteCtx.drawImage(paintCanvas, 0, 0, image.naturalWidth, image.naturalHeight);
         this.whiteCtx.globalCompositeOperation = 'source-in';
         this.whiteCtx.fillStyle = '#FFFFFF';
         this.whiteCtx.fillRect(0, 0, image.naturalWidth, image.naturalHeight);
 
-        // Apply gaussian blur if enabled
         if (CONFIG.PAINT.FEATHER.ENABLED && CONFIG.PAINT.FEATHER.RADIUS > 0) {
             this.applyGaussianBlur();
         }
 
-        // Draw black background
         this.previewCtx.fillStyle = '#000000';
         this.previewCtx.fillRect(0, 0, image.naturalWidth, image.naturalHeight);
 
-        // Draw white paint on top
         this.previewCtx.drawImage(this.whiteCanvas, 0, 0);
 
         return this.previewCanvas;
@@ -51,13 +45,11 @@ export default class MaskRenderer {
         const width = this.whiteCanvas.width;
         const height = this.whiteCanvas.height;
 
-        // Extract alpha channel
         const alphaChannel = new Uint8Array(width * height);
         for (let i = 0; i < width * height; i++) {
             alphaChannel[i] = pixels[i * 4 + 3];
         }
 
-        // Create gaussian kernel
         const kernelSize = radius * 2 + 1;
         const kernel = new Float32Array(kernelSize * kernelSize);
         const sigma = radius / 3;
@@ -72,31 +64,26 @@ export default class MaskRenderer {
             }
         }
 
-        // Normalize kernel
         const scale = 1 / sum;
         for (let i = 0; i < kernel.length; i++) {
             kernel[i] *= scale;
         }
 
-        // Create gradient mask
         const gradientMask = new Float32Array(width * height);
         this.createGradientMask(alphaChannel, gradientMask, width, height);
 
-        // Expand gradient influence
         const expandedMask = new Float32Array(width * height);
         this.expandGradientInfluence(gradientMask, expandedMask, width, height, radius);
 
-        // Apply blur
         const blurredAlpha = new Uint8Array(width * height);
         blurredAlpha.set(alphaChannel);
         this.applyBlur(blurredAlpha, expandedMask, alphaChannel, kernel, radius, width, height);
 
-        // Update image data
         for (let i = 0; i < width * height; i++) {
             const rgba = i * 4;
-            pixels[rgba] = 255;     // White
-            pixels[rgba + 1] = 255; // White
-            pixels[rgba + 2] = 255; // White
+            pixels[rgba] = 255;
+            pixels[rgba + 1] = 255;
+            pixels[rgba + 2] = 255;
             pixels[rgba + 3] = blurredAlpha[i];
         }
 
@@ -111,7 +98,7 @@ export default class MaskRenderer {
                 const currentAlpha = alphaChannel[idx];
 
                 if (currentAlpha === 0 || currentAlpha === 255) continue;
-
+                
                 let maxGradient = 0;
 
                 for (let dy = -1; dy <= 1; dy++) {

@@ -1,9 +1,9 @@
 import { CONFIG } from '../config.js';
-import { MaskRenderer } from './MaskRenderer.js';
+import MaskRenderer from './MaskRenderer.js';
 
 export default class DraggableImage {
     constructor(imageUrl, canvasState) {
-        this.x = 0;
+        this.x = 0
         this.y = 0;
         this.isDragging = false;
         this.isLoaded = false;

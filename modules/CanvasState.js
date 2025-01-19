@@ -66,7 +66,6 @@ export default class CanvasState {
             this.originY = mousePos.y - (mousePos.y - this.originY) * (newScale / this.scale);
             this.scale = newScale;
             
-            // Update cursor for zoom
             if (this.paintManager) {
                 this.paintManager.updateCursor();
             }
@@ -110,9 +109,5 @@ export default class CanvasState {
             x: (clientX - rect.left) * this.pixelRatio / this.scale - this.originX / this.scale,
             y: (clientY - rect.top) * this.pixelRatio / this.scale - this.originY / this.scale
         };
-    }
-
-    draw() {
-        // Implemented by child classes
     }
 }

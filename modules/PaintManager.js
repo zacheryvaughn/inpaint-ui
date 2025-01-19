@@ -1,5 +1,5 @@
 import { CONFIG } from '../config.js';
-import { CursorManager } from './CursorManager.js';
+import CursorManager from './CursorManager.js';
 
 export default class PaintManager {
     constructor(canvasState) {
@@ -22,7 +22,7 @@ export default class PaintManager {
         this.setupSizeControl('eraser');
         this.setupOpacityControl('mask', 'BACKGROUND');
         this.setupOpacityControl('brush', 'BRUSH');
-        this.setupFeatherControl();  // Add this line
+        this.setupFeatherControl();
     }
     
     setupFeatherControl() {
@@ -138,7 +138,6 @@ export default class PaintManager {
     drawStroke(smoothedPoint) {
         const ctx = this.paintTarget.getPaintContext();
         const currentSize = this.getCurrentSize();
-        
         const intermediatePoints = this.getIntermediatePoints(
             {
                 x: this.lastPaintPos.x - this.paintTarget.x,
@@ -151,7 +150,6 @@ export default class PaintManager {
         );
     
         ctx.save();
-        
         this.setupStrokeStyle(ctx, currentSize);
         
         if (intermediatePoints.length > 1) {
@@ -197,7 +195,6 @@ export default class PaintManager {
                 midPoint.y * this.canvasState.scale
             );
         }
-        
         ctx.stroke();
     }
 
@@ -212,7 +209,6 @@ export default class PaintManager {
         const distance = this.getDistance(start, end);
         const stepSize = this.getCurrentSize() / 2;
         const steps = Math.max(1, Math.floor(distance / stepSize));
-        
         const points = [];
         for (let i = 0; i <= steps; i++) {
             points.push(this.lerp(start, end, i / steps));
@@ -222,7 +218,6 @@ export default class PaintManager {
 
     getSmoothPoint(points) {
         if (points.length === 0) return null;
-        
         const recentPoints = points.slice(-this.smoothingFactor);
         let smoothX = 0;
         let smoothY = 0;

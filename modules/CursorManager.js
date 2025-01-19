@@ -3,19 +3,12 @@ export default class CursorManager {
         this.canvasState = canvasState;
         this.cursorOverlay = this.createOverlay();
         this.isVisible = false;
-        
-        // Bind methods
         this.updateOverlayPosition = this.updateOverlayPosition.bind(this);
         
-        // Add mouse move listener to canvas
         this.canvasState.canvas.addEventListener('mousemove', this.updateOverlayPosition);
-        
-        // Add mouse leave listener to hide overlay
         this.canvasState.canvas.addEventListener('mouseleave', () => {
             this.hideOverlay();
         });
-        
-        // Add mouse enter listener to show overlay
         this.canvasState.canvas.addEventListener('mouseenter', () => {
             if (this.isVisible) {
                 this.showOverlay();
