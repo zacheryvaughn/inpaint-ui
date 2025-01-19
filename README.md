@@ -1,8 +1,9 @@
 # InPaint UI (Canvas for Creating InPainting Masks)
 **Try It:** https://zacheryvaughn.github.io/inpaint-ui/
+
 ___
 **Masking Features:**
-- Import Images (can work with multiple at the same time)
+- Import Images (can work with multiple)
 - Paint and Erase Mask Area
 - Adjust Mask Opacity
 - Preview Mask Product (0-3 seconds to process)
@@ -10,6 +11,7 @@ ___
 - Adjust Feather Offset (from fully inset to fully outset)
 - Invert Mask (at export and preview)
 - Export Mask Image (mask that was most recently touched)
+
 ___
 **Canvas Features:**
 - Centered Origin
