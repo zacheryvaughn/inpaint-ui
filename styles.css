@@ -1,129 +1,127 @@
+:root {
+  --shade-50: #EEEEF1;
+  --shade-100: #CBCBD2;
+  --shade-200: #A9A9B2;
+  --shade-300: #888891;
+  --shade-400: #6D6D74;
+  --shade-500: #525356;
+  --shade-600: #3D3D3E;
+  --shade-700: #2B2B2C;
+  --shade-800: #1E1E1F;
+  --shade-900: #141415;
+
+  --accent-blue: #00AAFF;
+  --accent-blue-hover: #0066cc;
+  --error-red: #ff4444;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('InterVariable.ttf') format('truetype-variations');
+  font-weight: 100 900;
+  font-style: normal;
+}
+
 * {
+  /* Universal Font */
+  color: var(--shade-50);
+  font-family: 'Inter', Arial, Helvetica, sans-serif;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 24px;
+
+  /* Font Optimization */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
+
+  /* Box Model */
+  padding: 0;
+  margin: 0;
+  border: 0;
+  outline: 0;
   box-sizing: border-box;
 }
 
 body {
-  font-family: Arial, Helvetica, sans-serif;
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: calc(100vw);
-  height: calc(100vh);
-  padding: 0;
-  margin: 0;
-  background-color: #16171A;
+  width: 100vw;
+  height: 100vh;
   overflow: hidden;
-  touch-action: none;
 }
 
-h1 {
-  all: unset;
-  font-weight: bold;
-  font-size: 18px;
-}
-
-p {
-  all: unset;
-  font-size: 14px;
-  color: #ccc;
-  margin-left: 10px;
-}
-
-footer {
-  position: absolute;
-  bottom: 10px;
-  left: 10px;
+header {
   display: flex;
   align-items: center;
-  pointer-events: none;
-  user-select: none;
-}
-
-#canvas {
-  display: block;
+  justify-content: space-between;
+  height: 50px;
   width: 100%;
-  height: 100%;
+  padding: 0px 8px;
+  background-color: var(--shade-800);
 }
 
-#toolbar {
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-
+#toolbar-center {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-
-  padding: 8px;
-  background-color: #eee;
-  border-radius: 16px;
+  gap: 10px;
 }
 
 .toolbar-divider {
-  width: 36px;
-  height: 2px;
-  background-color: #aaa;
+  width: 2px;
+  height: 30px;
+  background-color: var(--shade-700);
 }
 
 .toolbar-svg {
-  fill: #555;
-  height: 24px;
+  fill: var(--shade-400);
+  width: 20px;
   flex-shrink: 0;
   transition: fill 0.2s;
 }
 
 .toolbar-button {
   position: relative;
-
   display: flex;
   align-items: center;
   justify-content: center;
-
-  width: 44px;
-  height: 44px;
-
-  padding: 8px 16px;
-  background-color: #ccc;
+  width: 38px;
+  height: 38px;
+  background-color: transparent;
   border: 0;
-
-  box-shadow: inset 0 0 0 0px #aaa;
-  border-radius: 10px;
-
+  border-radius: 6px;
   cursor: pointer;
-  transition: background-color 0.2s, box-shadow 0.1s;
+  transition: background-color 0.2s;
 }
 
-.toolbar-button:hover, .toolbar-button.selected {
-  background-color: #555;
+.toolbar-button:hover,
+.toolbar-button.selected {
+  background-color: var(--shade-700);
 }
 
-.toolbar-button:hover .toolbar-svg, .toolbar-button.selected .toolbar-svg {
-  fill: #ccc;
+.toolbar-button:hover .toolbar-svg {
+  fill: var(--shade-200);
 }
 
-.toolbar-button:hover .toolbar-hoverbox-container, .toolbar-button:active .toolbar-hoverbox-container {
+.toolbar-button.selected .toolbar-svg, .toolbar-button:active .toolbar-svg {
+  fill: var(--accent-blue);
+}
+
+.toolbar-button:hover .toolbar-hoverbox-container,
+.toolbar-button:active .toolbar-hoverbox-container {
   opacity: 1;
   transition-delay: 0.4s;
   pointer-events: all;
 }
 
-.toolbar-button:active, .toolbar-button.selected {
-  box-shadow: inset 0 0 0 3px #aaa;
-}
-
 .toolbar-hoverbox-container {
   position: absolute;
-  left: 100%;
-  top: 0;
-
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
   display: block;
-
-  padding-left: 16px;
-
+  padding-top: 16px;
   opacity: 0;
   transition: opacity 0.4s;
   pointer-events: none;
@@ -135,9 +133,8 @@ footer {
   align-items: flex-start;
   justify-content: center;
   gap: 12px;
-
-  padding: 12px 16px;
-  background-color: #eee;
+  padding: 20px;
+  background-color: var(--shade-800);
   border-radius: 8px;
 }
 
@@ -157,7 +154,6 @@ footer {
 }
 
 .toolbar-slider-container label {
-  color: #1A1A1A;
   font-size: 14px;
   font-weight: 400;
   margin-bottom: 4px;
@@ -169,7 +165,7 @@ input[type="range"] {
   height: 6px;
   -webkit-appearance: none;
   appearance: none;
-  background: #ccc;
+  background: var(--shade-600);
   border-radius: 3px;
   outline: none;
   margin: 8px 0;
@@ -181,7 +177,7 @@ input[type="range"]::-webkit-slider-thumb {
   appearance: none;
   width: 16px;
   height: 16px;
-  background: #555;
+  background: var(--shade-400);
   border-radius: 50%;
   cursor: pointer;
   transition: background 0.2s, transform 0.1s;
@@ -190,7 +186,7 @@ input[type="range"]::-webkit-slider-thumb {
 input[type="range"]::-moz-range-thumb {
   width: 16px;
   height: 16px;
-  background: #555;
+  background: var(--shade-400);
   border: none;
   border-radius: 50%;
   cursor: pointer;
@@ -199,28 +195,28 @@ input[type="range"]::-moz-range-thumb {
 
 /* Hover and focus states */
 input[type="range"]:hover::-webkit-slider-thumb {
-  background: #444;
+  background: var(--shade-400);
   transform: scale(1.1);
 }
 
 input[type="range"]:hover::-moz-range-thumb {
-  background: #444;
+  background: var(--shade-400);
   transform: scale(1.1);
 }
 
 input[type="range"]:focus::-webkit-slider-thumb {
-  box-shadow: 0 0 0 2px #eee, 0 0 0 4px #555;
+  box-shadow: 0 0 0 2px #eee, 0 0 0 4px  var(--shade-500);
 }
 
 input[type="range"]:focus::-moz-range-thumb {
-  box-shadow: 0 0 0 2px #eee, 0 0 0 4px #555;
+  box-shadow: 0 0 0 2px #eee, 0 0 0 4px  var(--shade-500);
 }
 
 /* Track styles for Firefox */
 input[type="range"]::-moz-range-track {
   width: 100%;
   height: 6px;
-  background: #ccc;
+  background: var(--shade-600);
   border-radius: 3px;
   border: none;
 }
@@ -228,7 +224,14 @@ input[type="range"]::-moz-range-track {
 /* Value display */
 .toolbar-slider-container span {
   display: inline-block;
-  color: #555;
+  color: var(--shade-200);
   font-size: 12px;
   margin-left: 8px;
+}
+
+/* CANVAS */
+#canvas {
+  display: block;
+  width: 100%;
+  height: calc(100% - 50px);
 }
