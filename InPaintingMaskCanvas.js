@@ -335,31 +335,38 @@ class DraggableImage {
         ctx.drawImage(this.image, this.x, this.y, this.width, this.height);
         
         if (this.canvasState.isPreviewingMask) {
-            // Create preview canvas
+            console.log('Raw image dimensions:', {
+                width: this.image.width,
+                height: this.image.height,
+                naturalWidth: this.image.naturalWidth,
+                naturalHeight: this.image.naturalHeight
+            });
+
+            // Create preview canvas at natural image dimensions
             const previewCanvas = document.createElement('canvas');
-            previewCanvas.width = this.width;
-            previewCanvas.height = this.height;
+            previewCanvas.width = this.image.naturalWidth;
+            previewCanvas.height = this.image.naturalHeight;
             const previewCtx = previewCanvas.getContext('2d');
 
-            // Create white version of paint
+            // Create white version of paint at natural image dimensions
             const whiteCanvas = document.createElement('canvas');
-            whiteCanvas.width = this.width;
-            whiteCanvas.height = this.height;
+            whiteCanvas.width = this.image.naturalWidth;
+            whiteCanvas.height = this.image.naturalHeight;
             const whiteCtx = whiteCanvas.getContext('2d');
 
-            // Convert paint to white using composite operations
-            whiteCtx.drawImage(this.paintCanvas, 0, 0);
+            // Convert paint to white using composite operations at raw dimensions
+            whiteCtx.drawImage(this.paintCanvas, 0, 0, this.image.naturalWidth, this.image.naturalHeight);
             whiteCtx.globalCompositeOperation = 'source-in';
             whiteCtx.fillStyle = '#FFFFFF';
-            whiteCtx.fillRect(0, 0, this.width, this.height);
+            whiteCtx.fillRect(0, 0, this.image.naturalWidth, this.image.naturalHeight);
 
             // Apply gaussian blur to the white paint layer if enabled
             if (CONFIG.PAINT.FEATHER.ENABLED && CONFIG.PAINT.FEATHER.RADIUS > 0) {
-                const imageData = whiteCtx.getImageData(0, 0, this.width, this.height);
+                const imageData = whiteCtx.getImageData(0, 0, this.image.naturalWidth, this.image.naturalHeight);
                 const pixels = imageData.data;
                 const radius = CONFIG.PAINT.FEATHER.RADIUS;
-                const width = this.width;
-                const height = this.height;
+                const width = this.image.naturalWidth;
+                const height = this.image.naturalHeight;
                 
                 // Extract alpha channel only (single channel)
                 const alphaChannel = new Uint8Array(width * height);
@@ -412,7 +419,7 @@ class DraggableImage {
                 
                 // Expand processing area around edges
                 const expandedMask = new Uint8Array(width * height);
-                const processingRadius = Math.floor(radius/2 + 5);
+                const processingRadius = Math.floor(radius/2 + 1);
                 
                 for (let y = 0; y < height; y++) {
                     const yOffset = y * width;
