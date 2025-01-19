@@ -17,6 +17,29 @@ body {
   touch-action: none;
 }
 
+h1 {
+  all: unset;
+  font-weight: bold;
+  font-size: 18px;
+}
+
+p {
+  all: unset;
+  font-size: 14px;
+  color: #ccc;
+  margin-left: 10px;
+}
+
+footer {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+  user-select: none;
+}
+
 #canvas {
   display: block;
   width: 100%;
@@ -68,7 +91,7 @@ body {
   border: 0;
 
   box-shadow: inset 0 0 0 0px #aaa;
-  border-radius: 8px;
+  border-radius: 10px;
 
   cursor: pointer;
   transition: background-color 0.2s, box-shadow 0.1s;
