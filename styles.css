@@ -10,7 +10,7 @@
   --shade-800: #1E1E1F;
   --shade-900: #141415;
 
-  --accent-blue: #00AAFF;
+  --primary-blue: #11bbee;
   --accent-blue-hover: #0066cc;
   --error-red: #ff4444;
 }
@@ -77,10 +77,42 @@ header {
 
 .toolbar-svg {
   fill: var(--shade-400);
-  height: 22px;
-  width: auto;
+  width: 22px;
   flex-shrink: 0;
   transition: fill 0.2s;
+}
+
+.mode-selector {
+  display: flex;
+  align-items: center;
+  margin-right: 16px;
+}
+
+.mode-select {
+  background-color: var(--shade-700);
+  color: var(--shade-50);
+  border: 1px solid var(--shade-600);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.mode-select:hover {
+  background-color: var(--shade-600);
+}
+
+.mode-select:focus {
+  outline: none;
+  border-color: var(--primary-blue);
+}
+
+.outpaint-preview {
+  position: absolute;
+  pointer-events: none;
+  border: 2px dashed var(--primary-blue);
+  background-color: rgba(255, 0, 0, 0.2);
 }
 
 .toolbar-button {
@@ -107,7 +139,7 @@ header {
 }
 
 .toolbar-button.selected .toolbar-svg, .toolbar-button:active .toolbar-svg {
-  fill: var(--accent-blue);
+  fill: var(--primary-blue);
 }
 
 .toolbar-button:hover .toolbar-hoverbox-container,

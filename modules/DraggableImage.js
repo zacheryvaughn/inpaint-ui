@@ -1,5 +1,6 @@
 import { CONFIG } from '../config.js';
 import MaskRenderer from './MaskRenderer.js';
+import OutpaintMask from './OutpaintMask.js';
 
 export default class DraggableImage {
     constructor(imageUrl, canvasState) {
@@ -8,9 +9,11 @@ export default class DraggableImage {
         this.isDragging = false;
         this.isLoaded = false;
         this.canvasState = canvasState;
+        this.currentMode = 'inpaint'; // Add this line
         
         this.setupImage(imageUrl);
         this.setupCanvases();
+        this.outpaintMask = null; // Add this line
     }
 
     setupImage(imageUrl) {
@@ -34,6 +37,9 @@ export default class DraggableImage {
         this.initializeCanvases();
         this.centerImage();
         this.snapToGrid();
+        
+        // Initialize outpaint mask after image is loaded
+        this.outpaintMask = new OutpaintMask(this, this.canvasState);
         
         this.canvasState?.scheduleRedraw();
     }
@@ -60,32 +66,73 @@ export default class DraggableImage {
         );
     }
 
+    // Add this new method
+    setMode(mode) {
+        this.currentMode = mode;
+        if (mode === 'outpaint' && !this.outpaintMask && this.isLoaded) {
+            this.outpaintMask = new OutpaintMask(this, this.canvasState);
+            // Initialize with minimum size
+            this.outpaintMask.extends = {
+                top: CONFIG.OUTPAINT.MIN_SIZE,
+                right: CONFIG.OUTPAINT.MIN_SIZE,
+                bottom: CONFIG.OUTPAINT.MIN_SIZE,
+                left: CONFIG.OUTPAINT.MIN_SIZE
+            };
+            this.outpaintMask.updateCanvasSize();
+        }
+    }
+
+    // In DraggableImage.js, modify the draw method:
     draw(ctx) {
         if (!this.isLoaded) return;
         
         // Draw the base image
         ctx.drawImage(this.image, this.x, this.y, this.width, this.height);
+
         if (this.canvasState.isPreviewingMask) {
             const maskRenderer = new MaskRenderer();
-            const previewCanvas = maskRenderer.renderMask(this.image, this.paintCanvas);
-            ctx.drawImage(previewCanvas, this.x, this.y);
-            ctx.drawImage(previewCanvas, this.x, this.y);
+            const previewCanvas = this.currentMode === 'inpaint' ? 
+                maskRenderer.renderMask(this.image, this.paintCanvas) :
+                this.outpaintMask.getMaskCanvas();
+            
+            if (this.currentMode === 'inpaint') {
+                ctx.drawImage(previewCanvas, this.x, this.y);
+            } else {
+                // For outpaint, we need to account for the extended canvas size
+                ctx.drawImage(previewCanvas,
+                    this.x - this.outpaintMask.extends.left,
+                    this.y - this.outpaintMask.extends.top,
+                    this.width + this.outpaintMask.extends.left + this.outpaintMask.extends.right,
+                    this.height + this.outpaintMask.extends.top + this.outpaintMask.extends.bottom
+                );
+            }
         } else {
             // Normal painting mode
-            ctx.save();
-            ctx.globalAlpha = CONFIG.PAINT.BACKGROUND.OPACITY;
-            ctx.fillStyle = CONFIG.PAINT.BACKGROUND.COLOR;
-            ctx.fillRect(this.x, this.y, this.width, this.height);
-            ctx.restore();
-            
-            ctx.save();
-            ctx.globalAlpha = CONFIG.PAINT.BRUSH.OPACITY;
-            ctx.fillStyle = CONFIG.PAINT.BRUSH.COLOR;
-            ctx.drawImage(this.paintCanvas, this.x, this.y);
-            ctx.restore();
+            if (this.currentMode === 'inpaint') {
+                ctx.save();
+                ctx.globalAlpha = CONFIG.PAINT.BACKGROUND.OPACITY;
+                ctx.fillStyle = CONFIG.PAINT.BACKGROUND.COLOR;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+                ctx.restore();
+                
+                ctx.save();
+                ctx.globalAlpha = CONFIG.PAINT.BRUSH.OPACITY;
+                ctx.fillStyle = CONFIG.PAINT.BRUSH.COLOR;
+                ctx.drawImage(this.paintCanvas, this.x, this.y);
+                ctx.restore();
+            } else if (this.outpaintMask) {
+                this.outpaintMask.draw(ctx);
+            }
         }
         
         this.drawCoordinates(ctx);
+    }
+
+    // Add this new method
+    getMaskCanvas() {
+        return this.currentMode === 'inpaint' ? 
+            this.paintCanvas : 
+            this.outpaintMask.getMaskCanvas();
     }
 
     drawCoordinates(ctx) {
