@@ -20,6 +20,26 @@ class AssembledInterface extends CanvasState {
         this.currentMode = 'inpaint';
         this.isDraggingMask = false;
         this.events = new Events();
+        this.previewImage = null;
+
+        // Setup socket event listeners
+        this.events.socket.on('mask_export_response', (data) => {
+            // Create temporary link and trigger download
+            const link = document.createElement('a');
+            link.download = 'mask.png';
+            link.href = data.blurred_mask;
+            link.click();
+        });
+
+        this.events.socket.on('mask_preview_response', (data) => {
+            // Create an image from the blurred mask
+            const img = new Image();
+            img.onload = () => {
+                this.previewImage = img;
+                this.scheduleRedraw();
+            };
+            img.src = data.blurred_mask;
+        });
 
         this.setupImageImport();
         this.setupToolSelection();
@@ -226,7 +246,7 @@ class AssembledInterface extends CanvasState {
         });
 
         const previewButton = document.getElementById('preview-mask');
-        previewButton.addEventListener('click', () => {
+        previewButton.addEventListener('mousedown', () => {
             if (this.images.length === 0) return;
 
             const image = this.images[this.images.length - 1];
@@ -252,7 +272,19 @@ class AssembledInterface extends CanvasState {
                 mode: this.currentMode,
                 blurRadius: blurRadius
             });
+
+            this.isPreviewingMask = true;
+            this.scheduleRedraw();
         });
+
+        const resetPreview = () => {
+            this.isPreviewingMask = false;
+            this.previewImage = null;
+            this.scheduleRedraw();
+        };
+
+        previewButton.addEventListener('mouseup', resetPreview);
+        previewButton.addEventListener('mouseleave', resetPreview);
 
         const exportButton = document.getElementById('export-operation');
         exportButton.addEventListener('click', () => {
@@ -429,7 +461,48 @@ class AssembledInterface extends CanvasState {
         this.ctx.save();
         this.ctx.setTransform(this.scale, 0, 0, this.scale, this.originX, this.originY);
         this.gridRenderer.draw();
-        this.images.forEach(img => img.draw(this.ctx));
+        
+        // Draw base images and handle preview
+        this.images.forEach(img => {
+            // Draw the base image
+            this.ctx.drawImage(img.image, img.x, img.y, img.width, img.height);
+            
+            // If previewing and we have a preview image, draw it
+            if (this.isPreviewingMask && this.previewImage) {
+                if (this.currentMode === 'inpaint') {
+                    this.ctx.drawImage(this.previewImage, img.x, img.y);
+                } else if (img.outpaintMask) {
+                    // For outpaint, account for the extended canvas size
+                    this.ctx.drawImage(
+                        this.previewImage,
+                        img.x - img.outpaintMask.extends.left,
+                        img.y - img.outpaintMask.extends.top,
+                        img.width + img.outpaintMask.extends.left + img.outpaintMask.extends.right,
+                        img.height + img.outpaintMask.extends.top + img.outpaintMask.extends.bottom
+                    );
+                }
+            } else if (!this.isPreviewingMask) {
+                // Normal painting mode
+                if (this.currentMode === 'inpaint') {
+                    this.ctx.save();
+                    this.ctx.globalAlpha = CONFIG.PAINT.BACKGROUND.OPACITY;
+                    this.ctx.fillStyle = CONFIG.PAINT.BACKGROUND.COLOR;
+                    this.ctx.fillRect(img.x, img.y, img.width, img.height);
+                    this.ctx.restore();
+                    
+                    this.ctx.save();
+                    this.ctx.globalAlpha = CONFIG.PAINT.BRUSH.OPACITY;
+                    this.ctx.fillStyle = CONFIG.PAINT.BRUSH.COLOR;
+                    this.ctx.drawImage(img.paintCanvas, img.x, img.y);
+                    this.ctx.restore();
+                } else if (img.outpaintMask) {
+                    img.outpaintMask.draw(this.ctx);
+                }
+            }
+            
+            img.drawCoordinates(this.ctx);
+        });
+        
         this.ctx.restore();
     }
 }
