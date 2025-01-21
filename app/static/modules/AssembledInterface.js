@@ -240,13 +240,7 @@ class AssembledInterface extends CanvasState {
         // Setup blur radius slider
         const blurRadiusSlider = document.getElementById('blurRadius');
         const blurRadiusValue = document.getElementById('blurRadiusValue');
-        
-        blurRadiusSlider.addEventListener('input', (e) => {
-            blurRadiusValue.textContent = e.target.value;
-        });
-
-        const previewButton = document.getElementById('preview-mask');
-        previewButton.addEventListener('mousedown', () => {
+        const showPreview = () => {
             if (this.images.length === 0) return;
 
             const image = this.images[this.images.length - 1];
@@ -275,13 +269,27 @@ class AssembledInterface extends CanvasState {
 
             this.isPreviewingMask = true;
             this.scheduleRedraw();
-        });
+        };
 
         const resetPreview = () => {
             this.isPreviewingMask = false;
             this.previewImage = null;
             this.scheduleRedraw();
         };
+
+        // Setup blur radius slider
+        blurRadiusSlider.addEventListener('input', (e) => {
+            blurRadiusValue.textContent = e.target.value;
+            showPreview();
+        });
+
+        blurRadiusSlider.addEventListener('mouseup', resetPreview);
+        blurRadiusSlider.addEventListener('mouseleave', resetPreview);
+
+        const previewButton = document.getElementById('preview-mask');
+        previewButton.addEventListener('mousedown', showPreview);
+        previewButton.addEventListener('mouseup', resetPreview);
+        previewButton.addEventListener('mouseleave', resetPreview);
 
         previewButton.addEventListener('mouseup', resetPreview);
         previewButton.addEventListener('mouseleave', resetPreview);
