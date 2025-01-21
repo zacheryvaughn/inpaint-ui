@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+
 :root {
   --shade-50: #EEEEF1;
   --shade-100: #CBCBD2;
@@ -13,13 +15,6 @@
   --primary-blue: #11bbee;
   --accent-blue-hover: #0066cc;
   --error-red: #ff4444;
-}
-
-@font-face {
-  font-family: 'Inter';
-  src: url('InterVariable.ttf') format('truetype-variations');
-  font-weight: 100 900;
-  font-style: normal;
 }
 
 * {

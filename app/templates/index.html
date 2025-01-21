@@ -4,8 +4,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="icon" type="image/png" sizes="32x32" href="images/favicon.png">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='images/favicon.png') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
   <title>Inpaint UI</title>
 </head>
 
@@ -149,7 +149,8 @@
     <p>&copy; 2025 Developed by Zachery Vaughn</p>
   </footer>
 
-  <script type="module" src="./modules/AssembledInterface.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+  <script type="module" src="{{ url_for('static', filename='modules/AssembledInterface.js') }}"></script>
 </body>
 
 </html>

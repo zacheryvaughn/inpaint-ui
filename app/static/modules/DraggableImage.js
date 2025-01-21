@@ -1,4 +1,4 @@
-import { CONFIG } from '../config.js';
+import { CONFIG } from './config.js';
 import MaskRenderer from './MaskRenderer.js';
 import OutpaintMask from './OutpaintMask.js';
 

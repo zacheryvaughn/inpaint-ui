@@ -1,4 +1,4 @@
-import { CONFIG } from '../config.js';
+import { CONFIG } from './config.js';
 import CanvasState from './CanvasState.js';
 import DraggableImage from './DraggableImage.js';
 import GridRenderer from './GridRenderer.js';
