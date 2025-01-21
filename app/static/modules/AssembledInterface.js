@@ -4,6 +4,7 @@ import DraggableImage from './DraggableImage.js';
 import GridRenderer from './GridRenderer.js';
 import MaskRenderer from './MaskRenderer.js';
 import PaintManager from './PaintManager.js';
+import Events from './Events.js';
 
 class AssembledInterface extends CanvasState {
     constructor(canvasId) {
@@ -17,7 +18,8 @@ class AssembledInterface extends CanvasState {
         this.isPreviewingMask = false;
         this.originalConfig = null;
         this.currentMode = 'inpaint';
-        this.isDraggingMask = false; // Add this line
+        this.isDraggingMask = false;
+        this.events = new Events();
 
         this.setupImageImport();
         this.setupToolSelection();
@@ -215,70 +217,70 @@ class AssembledInterface extends CanvasState {
     }
 
     setupPreviewButton() {
-        const previewButton = document.getElementById('preview-mask');
-        previewButton.addEventListener('mousedown', () => {
-            this.originalConfig = {
-                backgroundOpacity: CONFIG.PAINT.BACKGROUND.OPACITY,
-                brushOpacity: CONFIG.PAINT.BRUSH.OPACITY,
-                brushColor: CONFIG.PAINT.BRUSH.COLOR,
-                backgroundColor: CONFIG.PAINT.BACKGROUND.COLOR
-            };
-            
-            CONFIG.PAINT.BACKGROUND.OPACITY = 1.0;
-            CONFIG.PAINT.BRUSH.OPACITY = 1.0;
-            CONFIG.PAINT.BRUSH.COLOR = '#FFFFFF';
-            CONFIG.PAINT.BACKGROUND.COLOR = '#000000';
-            
-            this.isPreviewingMask = true;
-            this.scheduleRedraw();
+        // Setup blur radius slider
+        const blurRadiusSlider = document.getElementById('blurRadius');
+        const blurRadiusValue = document.getElementById('blurRadiusValue');
+        
+        blurRadiusSlider.addEventListener('input', (e) => {
+            blurRadiusValue.textContent = e.target.value;
         });
-        
-        const resetPreview = () => {
-            if (this.originalConfig) {
-                CONFIG.PAINT.BACKGROUND.OPACITY = this.originalConfig.backgroundOpacity;
-                CONFIG.PAINT.BRUSH.OPACITY = this.originalConfig.brushOpacity;
-                CONFIG.PAINT.BRUSH.COLOR = this.originalConfig.brushColor;
-                CONFIG.PAINT.BACKGROUND.COLOR = this.originalConfig.backgroundColor;
-                this.originalConfig = null;
-            }
-    
-            this.isPreviewingMask = false;
-            this.scheduleRedraw();
-        };
-        
-        previewButton.addEventListener('mouseup', resetPreview);
-        previewButton.addEventListener('mouseleave', resetPreview);
-    
-        const exportButton = document.getElementById('export-operation');
-        exportButton.addEventListener('click', () => {
+
+        const previewButton = document.getElementById('preview-mask');
+        previewButton.addEventListener('click', () => {
             if (this.images.length === 0) return;
-    
+
             const image = this.images[this.images.length - 1];
-            let exportCanvas;
-    
+            let maskCanvas;
+
             if (this.currentMode === 'outpaint' && image.outpaintMask) {
                 // For outpaint mode, use the outpaint mask
                 const mask = image.outpaintMask;
-                
-                // Create a new canvas with the extended dimensions
-                exportCanvas = document.createElement('canvas');
-                exportCanvas.width = image.width + mask.extends.left + mask.extends.right;
-                exportCanvas.height = image.height + mask.extends.top + mask.extends.bottom;
-                
-                // Get the mask canvas and draw it onto the export canvas
-                const maskCanvas = mask.getMaskCanvas();
-                const ctx = exportCanvas.getContext('2d');
-                ctx.drawImage(maskCanvas, 0, 0);
+                maskCanvas = mask.getMaskCanvas();
             } else {
                 // For inpaint mode, use the existing mask renderer
                 const maskRenderer = new MaskRenderer();
-                exportCanvas = maskRenderer.renderMask(image.image, image.paintCanvas);
+                maskCanvas = maskRenderer.renderMask(image.image, image.paintCanvas);
             }
-        
-            const link = document.createElement('a');
-            link.download = 'mask.png';
-            link.href = exportCanvas.toDataURL('image/png');
-            link.click();
+
+            // Get current blur radius
+            const blurRadius = parseInt(blurRadiusSlider.value);
+
+            // Convert canvas to base64 PNG and send via socket
+            const maskPngData = maskCanvas.toDataURL('image/png');
+            this.events.socket.emit('mask_preview', {
+                mask: maskPngData,
+                mode: this.currentMode,
+                blurRadius: blurRadius
+            });
+        });
+
+        const exportButton = document.getElementById('export-operation');
+        exportButton.addEventListener('click', () => {
+            if (this.images.length === 0) return;
+
+            const image = this.images[this.images.length - 1];
+            let maskCanvas;
+
+            if (this.currentMode === 'outpaint' && image.outpaintMask) {
+                // For outpaint mode, use the outpaint mask
+                const mask = image.outpaintMask;
+                maskCanvas = mask.getMaskCanvas();
+            } else {
+                // For inpaint mode, use the existing mask renderer
+                const maskRenderer = new MaskRenderer();
+                maskCanvas = maskRenderer.renderMask(image.image, image.paintCanvas);
+            }
+
+            // Get current blur radius
+            const blurRadius = parseInt(blurRadiusSlider.value);
+
+            // Convert canvas to base64 PNG and send via socket
+            const maskPngData = maskCanvas.toDataURL('image/png');
+            this.events.socket.emit('mask_export', {
+                mask: maskPngData,
+                mode: this.currentMode,
+                blurRadius: blurRadius
+            });
         });
     }
 
