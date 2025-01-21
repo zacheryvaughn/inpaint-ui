@@ -286,3 +286,9 @@ footer p {
   font-weight: 200;
   font-size: 14px;
 }
+
+.dialog-button {
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
