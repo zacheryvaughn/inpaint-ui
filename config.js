@@ -41,11 +41,7 @@ export const CONFIG = {
         ERASER: {
             SIZE: 48
         },
-        SMOOTHING_FACTOR: 8,
-        FEATHER: {
-            ENABLED: true,
-            RADIUS: 20
-        }
+        SMOOTHING_FACTOR: 8
     },
     OUTPAINT: {
         DEFAULT_SIZE: 0,

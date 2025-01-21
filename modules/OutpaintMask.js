@@ -6,7 +6,6 @@ export default class OutpaintMask {
         this.canvasState = canvasState;
         this.maskOverlap = CONFIG.OUTPAINT.DEFAULT_OVERLAP;
         
-        // Initialize with minimum size
         this.extends = {
             top: CONFIG.OUTPAINT.MIN_SIZE,
             right: CONFIG.OUTPAINT.MIN_SIZE,
@@ -31,7 +30,6 @@ export default class OutpaintMask {
     setupControls() {
         const overlapSlider = document.getElementById('maskOverlap');
         if (overlapSlider) {
-            // Update slider attributes to respect configs
             overlapSlider.min = CONFIG.OUTPAINT.MIN_OVERLAP;
             overlapSlider.max = CONFIG.OUTPAINT.MAX_OVERLAP;
             overlapSlider.value = CONFIG.OUTPAINT.DEFAULT_OVERLAP;
@@ -51,9 +49,7 @@ export default class OutpaintMask {
         }
     }
 
-    // Handle mouse interactions
     handleMouseDown(e) {
-        // Only handle left mouse button (button === 0)
         if (e.button !== 0) return false;
     
         const edge = this.getHoveredEdge(e);
@@ -66,7 +62,6 @@ export default class OutpaintMask {
         return false;
     }
 
-    // In OutpaintMask.js, modify the handleMouseMove method:
     handleMouseMove(e) {
         if (!this.isDragging) {
             const edge = this.getHoveredEdge(e);
@@ -89,7 +84,6 @@ export default class OutpaintMask {
     
         const currentPos = this.canvasState.getWorldCoordinates(e.clientX, e.clientY);
     
-        // Helper function to constrain extension size
         const constrainSize = (size) => {
             return Math.min(
                 Math.max(size, CONFIG.OUTPAINT.MIN_SIZE),
@@ -141,9 +135,8 @@ export default class OutpaintMask {
 
     getHoveredEdge(e) {
         const coords = this.canvasState.getWorldCoordinates(e.clientX, e.clientY);
-        const edgeThreshold = 10 / this.canvasState.scale; // Adjust hit area based on zoom
+        const edgeThreshold = 10 / this.canvasState.scale;
     
-        // Calculate the full mask boundaries
         const bounds = {
             left: this.image.x - this.extends.left,
             right: this.image.x + this.image.width + this.extends.right,
@@ -151,27 +144,18 @@ export default class OutpaintMask {
             bottom: this.image.y + this.image.height + this.extends.bottom
         };
     
-        // Check if we're within the vertical bounds when checking left/right edges
         const withinVerticalBounds = coords.y >= bounds.top && coords.y <= bounds.bottom;
-        // Check if we're within the horizontal bounds when checking top/bottom edges
         const withinHorizontalBounds = coords.x >= bounds.left && coords.x <= bounds.right;
     
-        // Check left edge
         if (Math.abs(coords.x - bounds.left) < edgeThreshold && withinVerticalBounds) {
             return 'left';
         }
-        
-        // Check right edge
         if (Math.abs(coords.x - bounds.right) < edgeThreshold && withinVerticalBounds) {
             return 'right';
         }
-        
-        // Check top edge
         if (Math.abs(coords.y - bounds.top) < edgeThreshold && withinHorizontalBounds) {
             return 'top';
         }
-        
-        // Check bottom edge
         if (Math.abs(coords.y - bounds.bottom) < edgeThreshold && withinHorizontalBounds) {
             return 'bottom';
         }
@@ -188,10 +172,8 @@ export default class OutpaintMask {
         this.canvas.width = width;
         this.canvas.height = height;
         
-        // Clear canvas
         this.ctx.clearRect(0, 0, width, height);
         
-        // Calculate overlap for each edge only if it has an extension
         const overlaps = {
             left: this.extends.left > 0 ? this.maskOverlap : 0,
             right: this.extends.right > 0 ? this.maskOverlap : 0,
@@ -199,32 +181,39 @@ export default class OutpaintMask {
             bottom: this.extends.bottom > 0 ? this.maskOverlap : 0
         };
         
-        // First fill everything with black (masked area)
+        // Fill everything with black (masked area)
         this.ctx.fillStyle = '#000000';
         this.ctx.fillRect(0, 0, width, height);
         
-        // Then draw the outpaint areas in white
+        // Draw the outpaint areas in white
         this.ctx.fillStyle = '#FFFFFF';
         
-        // Draw each outpaint region including overlap
         if (this.extends.left > 0) {
             this.ctx.fillRect(0, 0, this.extends.left + overlaps.left, height);
         }
+        
         if (this.extends.right > 0) {
-            this.ctx.fillRect(width - this.extends.right - overlaps.right, 0, this.extends.right + overlaps.right, height);
+            this.ctx.fillRect(
+                width - this.extends.right - overlaps.right, 0,
+                this.extends.right + overlaps.right, height
+            );
         }
+        
         if (this.extends.top > 0) {
             this.ctx.fillRect(0, 0, width, this.extends.top + overlaps.top);
         }
+        
         if (this.extends.bottom > 0) {
-            this.ctx.fillRect(0, height - this.extends.bottom - overlaps.bottom, width, this.extends.bottom + overlaps.bottom);
+            this.ctx.fillRect(
+                0, height - this.extends.bottom - overlaps.bottom,
+                width, this.extends.bottom + overlaps.bottom
+            );
         }
     }
     
     draw(ctx) {
         if (!this.image.isLoaded) return;
     
-        // Calculate active overlaps
         const overlaps = {
             left: this.extends.left > 0 ? this.maskOverlap : 0,
             right: this.extends.right > 0 ? this.maskOverlap : 0,
@@ -232,13 +221,11 @@ export default class OutpaintMask {
             bottom: this.extends.bottom > 0 ? this.maskOverlap : 0
         };
     
-        // Draw the preview outline
         ctx.save();
-        ctx.strokeStyle = 'rgba(17, 187, 238, 0.8)'; // primary-blue
+        ctx.strokeStyle = 'rgba(17, 187, 238, 0.8)';
         ctx.lineWidth = 2 / this.canvasState.scale;
         ctx.setLineDash([4 / this.canvasState.scale]);
         
-        // Draw extended area rectangle
         ctx.strokeRect(
             this.image.x - this.extends.left,
             this.image.y - this.extends.top,
@@ -246,10 +233,8 @@ export default class OutpaintMask {
             this.image.height + this.extends.top + this.extends.bottom
         );
     
-        // Draw overlap area if there is any overlap
         if (this.maskOverlap > 0) {
             ctx.strokeStyle = 'rgba(17, 187, 238, 0.4)';
-            // Only draw overlap lines for edges that have extensions
             if (this.extends.left > 0 || this.extends.right > 0 || 
                 this.extends.top > 0 || this.extends.bottom > 0) {
                 
@@ -263,10 +248,9 @@ export default class OutpaintMask {
         }
         ctx.restore();
     
-        // Draw the background black overlay
         ctx.save();
         ctx.globalAlpha = CONFIG.PAINT.BACKGROUND.OPACITY;
-        ctx.fillStyle = CONFIG.PAINT.BACKGROUND.COLOR; // This is black
+        ctx.fillStyle = CONFIG.PAINT.BACKGROUND.COLOR;
         ctx.fillRect(
             this.image.x - this.extends.left,
             this.image.y - this.extends.top,
@@ -275,19 +259,15 @@ export default class OutpaintMask {
         );
         ctx.restore();
     
-        // Draw the red overlay only in the outpaint regions
         ctx.save();
         ctx.globalAlpha = CONFIG.PAINT.BRUSH.OPACITY;
         ctx.fillStyle = 'rgba(255, 0, 0, 1)';
     
-        // Draw the red regions using a single path to avoid overlaps
         if (this.extends.left > 0 || this.extends.right > 0 || 
             this.extends.top > 0 || this.extends.bottom > 0) {
             
-            // Create a path for the entire outpaint area
             ctx.beginPath();
             
-            // Start with the outer rectangle
             ctx.rect(
                 this.image.x - this.extends.left,
                 this.image.y - this.extends.top,
@@ -295,7 +275,6 @@ export default class OutpaintMask {
                 this.image.height + this.extends.top + this.extends.bottom
             );
             
-            // Cut out the inner rectangle (non-outpainted area)
             ctx.rect(
                 this.image.x + overlaps.left,
                 this.image.y + overlaps.top,
@@ -303,7 +282,6 @@ export default class OutpaintMask {
                 this.image.height - (overlaps.top + overlaps.bottom)
             );
             
-            // Use "evenodd" fill rule to create the outline
             ctx.fill('evenodd');
         }
     
@@ -312,19 +290,6 @@ export default class OutpaintMask {
 
     getMaskCanvas() {
         this.updateCanvasSize();
-        
-        // When previewing, always use direct rendering
-        if (this.canvasState.isPreviewingMask) {
-            return this.canvas;
-        }
-        
-        // For normal rendering, apply feathering if enabled
-        if (!CONFIG.PAINT.FEATHER.ENABLED || CONFIG.PAINT.FEATHER.RADIUS === 0) {
-            return this.canvas;
-        }
-        
-        // If feathering is enabled, use MaskRenderer
-        const maskRenderer = new MaskRenderer();
-        return maskRenderer.renderMask(this.image.image, this.canvas);
+        return this.canvas;
     }
 }

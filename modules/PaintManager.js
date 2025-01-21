@@ -22,23 +22,6 @@ export default class PaintManager {
         this.setupSizeControl('eraser');
         this.setupOpacityControl('mask', 'BACKGROUND');
         this.setupOpacityControl('brush', 'BRUSH');
-        this.setupFeatherControl();
-    }
-    
-    setupFeatherControl() {
-        const slider = document.getElementById('featherAmount');
-        const value = document.getElementById('featherAmountValue');
-        
-        slider.value = CONFIG.PAINT.FEATHER.RADIUS;
-        value.textContent = CONFIG.PAINT.FEATHER.RADIUS;
-        
-        slider.addEventListener('input', (e) => {
-            const radius = parseInt(e.target.value);
-            CONFIG.PAINT.FEATHER.RADIUS = radius;
-            CONFIG.PAINT.FEATHER.ENABLED = radius > 0;
-            value.textContent = radius;
-            this.canvasState.scheduleRedraw();
-        });
     }
 
     setupSizeControl(tool) {
