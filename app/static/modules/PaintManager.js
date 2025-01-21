@@ -1,4 +1,4 @@
-import { CONFIG } from '../config.js';
+import { CONFIG } from './config.js';
 import CursorManager from './CursorManager.js';
 
 export default class PaintManager {
