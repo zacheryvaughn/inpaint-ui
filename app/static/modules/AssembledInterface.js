@@ -240,22 +240,40 @@ class AssembledInterface extends CanvasState {
                 CONFIG.PAINT.BRUSH.COLOR = this.originalConfig.brushColor;
                 CONFIG.PAINT.BACKGROUND.COLOR = this.originalConfig.backgroundColor;
                 this.originalConfig = null;
-            };
-
+            }
+    
             this.isPreviewingMask = false;
             this.scheduleRedraw();
         };
         
         previewButton.addEventListener('mouseup', resetPreview);
         previewButton.addEventListener('mouseleave', resetPreview);
-
+    
         const exportButton = document.getElementById('export-operation');
         exportButton.addEventListener('click', () => {
             if (this.images.length === 0) return;
-
+    
             const image = this.images[this.images.length - 1];
-            const maskRenderer = new MaskRenderer();
-            const exportCanvas = maskRenderer.renderMask(image.image, image.paintCanvas);
+            let exportCanvas;
+    
+            if (this.currentMode === 'outpaint' && image.outpaintMask) {
+                // For outpaint mode, use the outpaint mask
+                const mask = image.outpaintMask;
+                
+                // Create a new canvas with the extended dimensions
+                exportCanvas = document.createElement('canvas');
+                exportCanvas.width = image.width + mask.extends.left + mask.extends.right;
+                exportCanvas.height = image.height + mask.extends.top + mask.extends.bottom;
+                
+                // Get the mask canvas and draw it onto the export canvas
+                const maskCanvas = mask.getMaskCanvas();
+                const ctx = exportCanvas.getContext('2d');
+                ctx.drawImage(maskCanvas, 0, 0);
+            } else {
+                // For inpaint mode, use the existing mask renderer
+                const maskRenderer = new MaskRenderer();
+                exportCanvas = maskRenderer.renderMask(image.image, image.paintCanvas);
+            }
         
             const link = document.createElement('a');
             link.download = 'mask.png';
