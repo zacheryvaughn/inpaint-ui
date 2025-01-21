@@ -57,11 +57,18 @@ header {
   background-color: var(--shade-800);
 }
 
-#toolbar-center {
+#toolbar-left {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
+  justify-content: flex-start;
+  gap: 12px;
+}
+
+#toolbar-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
 }
 
 .toolbar-divider {
