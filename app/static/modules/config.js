@@ -46,7 +46,7 @@ export const CONFIG = {
     OUTPAINT: {
         DEFAULT_SIZE: 0,
         MIN_SIZE: 0,
-        MAX_SIZE: 1024,
+        MAX_SIZE: 4096,
         DEFAULT_OVERLAP: 24,
         MIN_OVERLAP: 8,
         MAX_OVERLAP: 128
