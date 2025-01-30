@@ -35,9 +35,32 @@ export default class CanvasState {
         this.canvas.addEventListener('mouseout', this.handleMouseOut.bind(this));
         this.canvas.addEventListener('wheel', this.handleWheel.bind(this), { passive: false });
         
+        // Initialize resize-related properties
+        this._resizeTimeout = null;
+        this._lastWidth = this.canvas.clientWidth;
+        this._lastHeight = this.canvas.clientHeight;
+        
         this.resizeObserver = new ResizeObserver(() => {
-            this.resizeCanvasToDisplaySize();
-            this.scheduleRedraw();
+            const currentWidth = this.canvas.clientWidth;
+            const currentHeight = this.canvas.clientHeight;
+            
+            // Only proceed if dimensions actually changed
+            if (currentWidth !== this._lastWidth || currentHeight !== this._lastHeight) {
+                // Immediately update canvas size to prevent stretching
+                this.resizeCanvasToDisplaySize();
+                
+                // Clear any pending redraw handlers
+                clearTimeout(this._resizeTimeout);
+                
+                // Debounce only the content redraw
+                this._resizeTimeout = setTimeout(() => {
+                    this.scheduleRedraw();
+                    
+                    // Update last known dimensions
+                    this._lastWidth = currentWidth;
+                    this._lastHeight = currentHeight;
+                }, 100); // 100ms debounce delay
+            }
         });
         this.resizeObserver.observe(this.canvas);
     }
@@ -85,7 +108,16 @@ export default class CanvasState {
         this.canvas.removeEventListener('mouseup', this.handleMouseUp.bind(this));
         this.canvas.removeEventListener('mouseout', this.handleMouseOut.bind(this));
         this.canvas.removeEventListener('wheel', this.handleWheel.bind(this));
-        this.resizeObserver?.disconnect();
+        
+        // Clean up resize observer and any pending resize timeouts
+        if (this.resizeObserver) {
+            this.resizeObserver.disconnect();
+            this.resizeObserver = null;
+        }
+        if (this._resizeTimeout) {
+            clearTimeout(this._resizeTimeout);
+            this._resizeTimeout = null;
+        }
     }
 
     resizeCanvasToDisplaySize() {
