@@ -8,6 +8,7 @@ import { CanvasFactory } from './utils/CanvasFactory.js';
 import { MaskPreviewManager } from './utils/MaskPreviewManager.js';
 import { ImageImportManager } from './utils/ImageImportManager.js';
 import { Mask } from './Mask.js';
+import { PaintCommand, CommandManager } from './utils/Commands.js';
 
 class AssembledInterface extends CanvasState {
     constructor(canvasId) {
@@ -24,6 +25,7 @@ class AssembledInterface extends CanvasState {
         this.events = new Events();
         this.maskPreviewManager = new MaskPreviewManager(this, this.events);
         this.imageImportManager = new ImageImportManager(this);
+        this.commandManager = new CommandManager(this);
 
         // Setup socket event listeners
         this.setupSocketListeners();
@@ -291,9 +293,17 @@ class AssembledInterface extends CanvasState {
         }
 
         // If not dragging mask, handle other mouse down events
-        if (this.currentMode === 'inpaint' && 
-            (this.currentTool === 'paint' || this.currentTool === 'eraser') && 
+        if (this.currentMode === 'inpaint' &&
+            (this.currentTool === 'paint' || this.currentTool === 'eraser') &&
             e.button === 0) {
+            const currentImage = this.images[this.images.length - 1];
+            // Store initial canvas state for undo
+            const initialState = currentImage.paintCtx.getImageData(
+                0, 0,
+                currentImage.paintCanvas.width,
+                currentImage.paintCanvas.height
+            );
+            this.paintManager._initialState = initialState;
             this.paintManager.startPainting(e);
         } else if (e.button === 2) {
             this.startPanning(e);
@@ -346,7 +356,24 @@ class AssembledInterface extends CanvasState {
                 this.paintManager.updateCursor();
             }
             if (this.paintManager.isPainting) {
+                const currentImage = this.images[this.images.length - 1];
+                // Get final state after painting
+                const finalState = currentImage.paintCtx.getImageData(
+                    0, 0,
+                    currentImage.paintCanvas.width,
+                    currentImage.paintCanvas.height
+                );
+                
+                // Create and execute paint command
+                const paintCommand = new PaintCommand(
+                    currentImage,
+                    this.paintManager._initialState,
+                    finalState
+                );
+                this.commandManager.execute(paintCommand);
+                
                 this.paintManager.stopPainting();
+                this.paintManager._initialState = null;
             }
         }
     }

@@ -1,7 +1,9 @@
 export class CanvasFactory {
-    static createCanvas(width, height) {
+    static createCanvas(width, height, options = {}) {
         const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d', {
+            willReadFrequently: options.willReadFrequently || false
+        });
         canvas.width = width || 0;
         canvas.height = height || 0;
         return { canvas, ctx };
@@ -23,7 +25,9 @@ export class CanvasFactory {
     static resizeCanvas(canvas, width, height, pixelRatio = 1) {
         canvas.width = width * pixelRatio;
         canvas.height = height * pixelRatio;
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d', {
+            willReadFrequently: true
+        });
         ctx.scale(pixelRatio, pixelRatio);
         return ctx;
     }

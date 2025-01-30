@@ -26,7 +26,9 @@ export default class DraggableImage {
     setupCanvases() {
         // Create canvases with initial dimensions
         const { canvas: backgroundCanvas, ctx: backgroundCtx } = CanvasFactory.createCanvas(1, 1);
-        const { canvas: paintCanvas, ctx: paintCtx } = CanvasFactory.createCanvas(1, 1);
+        const { canvas: paintCanvas, ctx: paintCtx } = CanvasFactory.createCanvas(1, 1, {
+            willReadFrequently: true // Enable for better performance with getImageData
+        });
         
         this.backgroundCanvas = backgroundCanvas;
         this.backgroundCtx = backgroundCtx;
