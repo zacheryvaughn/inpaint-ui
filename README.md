@@ -3,14 +3,13 @@
 
 ___
 **Masking Features:**
-- Import Images (can work with multiple)
+- Import Image
 - Paint and Erase Mask Area
 - Adjust Mask Opacity
 - Preview Mask Product (0-3 seconds to process)
 - Feather Mask Edge
 - Adjust Feather Offset (from fully inset to fully outset)
-- Invert Mask (at export and preview)
-- Export Mask Image (mask that was most recently touched)
+- Export Images (saved to directory in root)
 
 ___
 **Canvas Features:**
