@@ -1,4 +1,6 @@
 import { CONFIG } from './config.js';
+import { CanvasFactory } from './utils/CanvasFactory.js';
+import { CoordinateSystem } from './utils/CoordinateSystem.js';
 import CursorManager from './CursorManager.js';
 
 export default class PaintManager {
@@ -81,7 +83,7 @@ export default class PaintManager {
     }
 
     startPainting(e) {
-        const coords = this.canvasState.getWorldCoordinates(e.clientX, e.clientY);
+        const coords = CoordinateSystem.worldToCanvas(e.clientX, e.clientY, this.canvasState);
         
         for (let i = this.canvasState.images.length - 1; i >= 0; i--) {
             const img = this.canvasState.images[i];
@@ -99,7 +101,7 @@ export default class PaintManager {
     paint(e) {
         if (!this.isPainting || !this.paintTarget) return;
     
-        const coords = this.canvasState.getWorldCoordinates(e.clientX, e.clientY);
+        const coords = CoordinateSystem.worldToCanvas(e.clientX, e.clientY, this.canvasState);
         this.strokePoints.push(coords);
         
         const smoothedPoint = this.getSmoothPoint(this.strokePoints);
@@ -143,16 +145,14 @@ export default class PaintManager {
     }
 
     setupStrokeStyle(ctx, size) {
-        if (this.currentTool === 'eraser') {
-            ctx.globalCompositeOperation = 'destination-out';
-        } else {
-            ctx.strokeStyle = CONFIG.PAINT.BRUSH.COLOR;
-            ctx.globalCompositeOperation = 'source-over';
-        }
+        CanvasFactory.setupCanvasContext(ctx, {
+            strokeStyle: CONFIG.PAINT.BRUSH.COLOR,
+            globalCompositeOperation: this.currentTool === 'eraser' ? 'destination-out' : 'source-over',
+            lineWidth: size * 2 * this.canvasState.scale,
+            lineCap: 'round',
+            lineJoin: 'round'
+        });
         
-        ctx.lineWidth = size * 2 * this.canvasState.scale;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
         ctx.scale(1 / this.canvasState.scale, 1 / this.canvasState.scale);
     }
 

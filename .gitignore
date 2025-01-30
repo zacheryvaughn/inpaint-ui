@@ -1,3 +1,5 @@
 .venv/
 __pycache__/
 .DS_Store
+mask_outputs/
+source_outputs/

@@ -1,6 +1,132 @@
 import { CONFIG } from './config.js';
+import { CanvasFactory } from './utils/CanvasFactory.js';
+import { CoordinateSystem } from './utils/CoordinateSystem.js';
 
-export default class OutpaintMask {
+export class Mask {
+    // Static methods for mask operations
+    static createMaskCanvas(width, height) {
+        return CanvasFactory.createCanvas(width, height);
+    }
+
+    static renderInpaintMask(sourceImage, paintCanvas) {
+        const { canvas: previewCanvas, ctx: previewCtx } = this.createMaskCanvas(
+            sourceImage.naturalWidth,
+            sourceImage.naturalHeight
+        );
+
+        const { canvas: whiteCanvas, ctx: whiteCtx } = this.createMaskCanvas(
+            sourceImage.naturalWidth,
+            sourceImage.naturalHeight
+        );
+
+        // Draw the paint canvas onto the white canvas
+        whiteCtx.drawImage(paintCanvas, 0, 0, sourceImage.naturalWidth, sourceImage.naturalHeight);
+
+        // Fill the painted areas with white
+        whiteCtx.globalCompositeOperation = 'source-in';
+        whiteCtx.fillStyle = '#FFFFFF';
+        whiteCtx.fillRect(0, 0, sourceImage.naturalWidth, sourceImage.naturalHeight);
+
+        // Fill the preview canvas with black
+        previewCtx.fillStyle = '#000000';
+        previewCtx.fillRect(0, 0, sourceImage.naturalWidth, sourceImage.naturalHeight);
+
+        // Draw the white mask onto the preview canvas
+        previewCtx.drawImage(whiteCanvas, 0, 0);
+
+        return previewCanvas;
+    }
+
+    static renderOutpaintMask(width, height, extends_, overlap) {
+        const { canvas, ctx } = this.createMaskCanvas(width, height);
+
+        // Fill everything with black (masked area)
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, width, height);
+
+        // Draw the outpaint areas in white
+        ctx.fillStyle = '#FFFFFF';
+
+        const overlaps = {
+            left: extends_.left > 0 ? overlap : 0,
+            right: extends_.right > 0 ? overlap : 0,
+            top: extends_.top > 0 ? overlap : 0,
+            bottom: extends_.bottom > 0 ? overlap : 0
+        };
+
+        if (extends_.left > 0) {
+            ctx.fillRect(0, 0, extends_.left + overlaps.left, height);
+        }
+
+        if (extends_.right > 0) {
+            ctx.fillRect(
+                width - extends_.right - overlaps.right, 0,
+                extends_.right + overlaps.right, height
+            );
+        }
+
+        if (extends_.top > 0) {
+            ctx.fillRect(0, 0, width, extends_.top + overlaps.top);
+        }
+
+        if (extends_.bottom > 0) {
+            ctx.fillRect(
+                0, height - extends_.bottom - overlaps.bottom,
+                width, extends_.bottom + overlaps.bottom
+            );
+        }
+
+        return canvas;
+    }
+
+    static drawOutpaintBounds(ctx, image, extends_, scale) {
+        ctx.save();
+        
+        // Draw outer bounds
+        ctx.strokeStyle = 'rgba(17, 187, 238, 0.8)';
+        ctx.lineWidth = 2 / scale;
+        ctx.setLineDash([4 / scale]);
+        
+        ctx.strokeRect(
+            image.x - extends_.left,
+            image.y - extends_.top,
+            image.width + extends_.left + extends_.right,
+            image.height + extends_.top + extends_.bottom
+        );
+
+        // Draw overlap bounds if needed
+        if (image.maskOverlap > 0) {
+            ctx.strokeStyle = 'rgba(17, 187, 238, 0.4)';
+            const overlaps = {
+                left: extends_.left > 0 ? image.maskOverlap : 0,
+                right: extends_.right > 0 ? image.maskOverlap : 0,
+                top: extends_.top > 0 ? image.maskOverlap : 0,
+                bottom: extends_.bottom > 0 ? image.maskOverlap : 0
+            };
+
+            if (extends_.left > 0 || extends_.right > 0 || 
+                extends_.top > 0 || extends_.bottom > 0) {
+                
+                const x = image.x + (extends_.left > 0 ? overlaps.left : 0);
+                const y = image.y + (extends_.top > 0 ? overlaps.top : 0);
+                const w = image.width - (overlaps.left + overlaps.right);
+                const h = image.height - (overlaps.top + overlaps.bottom);
+                
+                ctx.strokeRect(x, y, w, h);
+            }
+        }
+        
+        ctx.restore();
+    }
+
+    static constrainExtension(size) {
+        return Math.min(
+            Math.max(size, CONFIG.OUTPAINT.MIN_SIZE),
+            CONFIG.OUTPAINT.MAX_SIZE
+        );
+    }
+
+    // Instance methods for outpaint mask management
     constructor(image, canvasState) {
         this.image = image;
         this.canvasState = canvasState;
@@ -17,14 +143,12 @@ export default class OutpaintMask {
         this.dragEdge = null;
         this.dragStart = null;
         
-        this.setupCanvas();
-        this.setupControls();
-    }
-
-    setupCanvas() {
-        this.canvas = document.createElement('canvas');
-        this.ctx = this.canvas.getContext('2d');
+        const { canvas, ctx } = CanvasFactory.createCanvas();
+        this.canvas = canvas;
+        this.ctx = ctx;
+        
         this.updateCanvasSize();
+        this.setupControls();
     }
 
     setupControls() {
@@ -56,7 +180,7 @@ export default class OutpaintMask {
         if (edge) {
             this.isDragging = true;
             this.dragEdge = edge;
-            this.dragStart = this.canvasState.getWorldCoordinates(e.clientX, e.clientY);
+            this.dragStart = CoordinateSystem.worldToCanvas(e.clientX, e.clientY, this.canvasState);
             return true;
         }
         return false;
@@ -82,48 +206,39 @@ export default class OutpaintMask {
             return;
         }
     
-        const currentPos = this.canvasState.getWorldCoordinates(e.clientX, e.clientY);
-    
-        const constrainSize = (size) => {
-            return Math.min(
-                Math.max(size, CONFIG.OUTPAINT.MIN_SIZE),
-                CONFIG.OUTPAINT.MAX_SIZE
-            );
-        };
+        const currentPos = CoordinateSystem.worldToCanvas(e.clientX, e.clientY, this.canvasState);
     
         switch(this.dragEdge) {
             case 'left': {
                 const extension = Math.max(0, this.image.x - currentPos.x);
-                this.extends.left = constrainSize(
-                    Math.round(extension / CONFIG.IMAGE.SNAP_SIZE) * CONFIG.IMAGE.SNAP_SIZE
-                );
+                this.extends.left = this.snapExtensionToGrid(extension);
                 break;
             }
             case 'right': {
                 const extension = Math.max(0, currentPos.x - (this.image.x + this.image.width));
-                this.extends.right = constrainSize(
-                    Math.round(extension / CONFIG.IMAGE.SNAP_SIZE) * CONFIG.IMAGE.SNAP_SIZE
-                );
+                this.extends.right = this.snapExtensionToGrid(extension);
                 break;
             }
             case 'top': {
                 const extension = Math.max(0, this.image.y - currentPos.y);
-                this.extends.top = constrainSize(
-                    Math.round(extension / CONFIG.IMAGE.SNAP_SIZE) * CONFIG.IMAGE.SNAP_SIZE
-                );
+                this.extends.top = this.snapExtensionToGrid(extension);
                 break;
             }
             case 'bottom': {
                 const extension = Math.max(0, currentPos.y - (this.image.y + this.image.height));
-                this.extends.bottom = constrainSize(
-                    Math.round(extension / CONFIG.IMAGE.SNAP_SIZE) * CONFIG.IMAGE.SNAP_SIZE
-                );
+                this.extends.bottom = this.snapExtensionToGrid(extension);
                 break;
             }
         }
     
         this.updateCanvasSize();
         this.canvasState.scheduleRedraw();
+    }
+
+    snapExtensionToGrid(extension) {
+        return Mask.constrainExtension(
+            Math.round(extension / CONFIG.IMAGE.SNAP_SIZE) * CONFIG.IMAGE.SNAP_SIZE
+        );
     }
 
     handleMouseUp() {
@@ -134,7 +249,7 @@ export default class OutpaintMask {
     }
 
     getHoveredEdge(e) {
-        const coords = this.canvasState.getWorldCoordinates(e.clientX, e.clientY);
+        const coords = CoordinateSystem.worldToCanvas(e.clientX, e.clientY, this.canvasState);
         const edgeThreshold = 10 / this.canvasState.scale;
     
         const bounds = {
@@ -169,84 +284,18 @@ export default class OutpaintMask {
         const width = this.image.width + this.extends.left + this.extends.right;
         const height = this.image.height + this.extends.top + this.extends.bottom;
         
-        this.canvas.width = width;
-        this.canvas.height = height;
-        
-        this.ctx.clearRect(0, 0, width, height);
-        
-        const overlaps = {
-            left: this.extends.left > 0 ? this.maskOverlap : 0,
-            right: this.extends.right > 0 ? this.maskOverlap : 0,
-            top: this.extends.top > 0 ? this.maskOverlap : 0,
-            bottom: this.extends.bottom > 0 ? this.maskOverlap : 0
-        };
-        
-        // Fill everything with black (masked area)
-        this.ctx.fillStyle = '#000000';
-        this.ctx.fillRect(0, 0, width, height);
-        
-        // Draw the outpaint areas in white
-        this.ctx.fillStyle = '#FFFFFF';
-        
-        if (this.extends.left > 0) {
-            this.ctx.fillRect(0, 0, this.extends.left + overlaps.left, height);
-        }
-        
-        if (this.extends.right > 0) {
-            this.ctx.fillRect(
-                width - this.extends.right - overlaps.right, 0,
-                this.extends.right + overlaps.right, height
-            );
-        }
-        
-        if (this.extends.top > 0) {
-            this.ctx.fillRect(0, 0, width, this.extends.top + overlaps.top);
-        }
-        
-        if (this.extends.bottom > 0) {
-            this.ctx.fillRect(
-                0, height - this.extends.bottom - overlaps.bottom,
-                width, this.extends.bottom + overlaps.bottom
-            );
-        }
+        this.canvas = Mask.renderOutpaintMask(
+            width,
+            height,
+            this.extends,
+            this.maskOverlap
+        );
     }
     
     draw(ctx) {
         if (!this.image.isLoaded) return;
-    
-        const overlaps = {
-            left: this.extends.left > 0 ? this.maskOverlap : 0,
-            right: this.extends.right > 0 ? this.maskOverlap : 0,
-            top: this.extends.top > 0 ? this.maskOverlap : 0,
-            bottom: this.extends.bottom > 0 ? this.maskOverlap : 0
-        };
-    
-        ctx.save();
-        ctx.strokeStyle = 'rgba(17, 187, 238, 0.8)';
-        ctx.lineWidth = 2 / this.canvasState.scale;
-        ctx.setLineDash([4 / this.canvasState.scale]);
         
-        ctx.strokeRect(
-            this.image.x - this.extends.left,
-            this.image.y - this.extends.top,
-            this.image.width + this.extends.left + this.extends.right,
-            this.image.height + this.extends.top + this.extends.bottom
-        );
-    
-        if (this.maskOverlap > 0) {
-            ctx.strokeStyle = 'rgba(17, 187, 238, 0.4)';
-            if (this.extends.left > 0 || this.extends.right > 0 || 
-                this.extends.top > 0 || this.extends.bottom > 0) {
-                
-                const x = this.image.x + (this.extends.left > 0 ? overlaps.left : 0);
-                const y = this.image.y + (this.extends.top > 0 ? overlaps.top : 0);
-                const w = this.image.width - (overlaps.left + overlaps.right);
-                const h = this.image.height - (overlaps.top + overlaps.bottom);
-                
-                ctx.strokeRect(x, y, w, h);
-            }
-        }
-        ctx.restore();
+        Mask.drawOutpaintBounds(ctx, this.image, this.extends, this.canvasState.scale);
     
         ctx.save();
         ctx.globalAlpha = CONFIG.PAINT.BACKGROUND.OPACITY;
@@ -265,6 +314,13 @@ export default class OutpaintMask {
     
         if (this.extends.left > 0 || this.extends.right > 0 || 
             this.extends.top > 0 || this.extends.bottom > 0) {
+            
+            const overlaps = {
+                left: this.extends.left > 0 ? this.maskOverlap : 0,
+                right: this.extends.right > 0 ? this.maskOverlap : 0,
+                top: this.extends.top > 0 ? this.maskOverlap : 0,
+                bottom: this.extends.bottom > 0 ? this.maskOverlap : 0
+            };
             
             ctx.beginPath();
             

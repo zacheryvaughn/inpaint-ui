@@ -1,23 +1,14 @@
 import { CONFIG } from './config.js';
+import { CanvasFactory } from './utils/CanvasFactory.js';
+import { CoordinateSystem } from './utils/CoordinateSystem.js';
 
 export default class GridRenderer {
     constructor(canvasState) {
         this.state = canvasState;
     }
 
-    getViewportBounds() {
-        const canvasMinX = -this.state.originX / this.state.scale;
-        const canvasMinY = -this.state.originY / this.state.scale;
-        return {
-            minX: canvasMinX,
-            minY: canvasMinY,
-            maxX: canvasMinX + this.state.canvas.width / this.state.scale,
-            maxY: canvasMinY + this.state.canvas.height / this.state.scale
-        };
-    }
-
     draw() {
-        const bounds = this.getViewportBounds();
+        const bounds = CoordinateSystem.getViewportBounds(this.state);
         this.drawDynamicGrid(bounds);
         this.drawOriginCross();
     }
@@ -35,36 +26,62 @@ export default class GridRenderer {
     }
 
     drawGridLines(bounds, gridSize, color) {
-        const ctx = this.state.ctx;
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 1 / this.state.scale;
+        CanvasFactory.setupCanvasContext(this.state.ctx, {
+            strokeStyle: color,
+            lineWidth: 1 / this.state.scale,
+            lineCap: 'butt',
+            lineJoin: 'miter'
+        });
 
         const startX = Math.floor(bounds.minX / gridSize) * gridSize;
         const startY = Math.floor(bounds.minY / gridSize) * gridSize;
+        const endX = Math.ceil(bounds.maxX / gridSize) * gridSize;
+        const endY = Math.ceil(bounds.maxY / gridSize) * gridSize;
 
-        ctx.beginPath();
-        for (let x = startX; x <= bounds.maxX; x += gridSize) {
-            ctx.moveTo(x, bounds.minY);
-            ctx.lineTo(x, bounds.maxY);
+        this.state.ctx.beginPath();
+        
+        // Draw vertical lines
+        for (let x = startX; x <= endX; x += gridSize) {
+            const alignedX = Math.round(x * this.state.scale) / this.state.scale;
+            this.state.ctx.moveTo(alignedX, bounds.minY);
+            this.state.ctx.lineTo(alignedX, bounds.maxY);
         }
-        for (let y = startY; y <= bounds.maxY; y += gridSize) {
-            ctx.moveTo(bounds.minX, y);
-            ctx.lineTo(bounds.maxX, y);
+        
+        // Draw horizontal lines
+        for (let y = startY; y <= endY; y += gridSize) {
+            const alignedY = Math.round(y * this.state.scale) / this.state.scale;
+            this.state.ctx.moveTo(bounds.minX, alignedY);
+            this.state.ctx.lineTo(bounds.maxX, alignedY);
         }
-        ctx.stroke();
+        
+        this.state.ctx.stroke();
     }
 
     drawOriginCross() {
-        const ctx = this.state.ctx;
         const size = CONFIG.GRID.ORIGIN_CROSS_SIZE;
         
-        ctx.strokeStyle = CONFIG.GRID.ORIGIN_COLOR;
-        ctx.lineWidth = 1 / this.state.scale;
-        ctx.beginPath();
-        ctx.moveTo(-size, 0);
-        ctx.lineTo(size, 0);
-        ctx.moveTo(0, -size);
-        ctx.lineTo(0, size);
-        ctx.stroke();
+        CanvasFactory.setupCanvasContext(this.state.ctx, {
+            strokeStyle: CONFIG.GRID.ORIGIN_COLOR,
+            lineWidth: 1 / this.state.scale,
+            lineCap: 'butt',
+            lineJoin: 'miter'
+        });
+
+        // Align to pixel boundaries for crisp lines
+        const alignedSize = Math.round(size * this.state.scale) / this.state.scale;
+        
+        this.state.ctx.beginPath();
+        
+        // Horizontal line
+        const alignedY = Math.round(0 * this.state.scale) / this.state.scale;
+        this.state.ctx.moveTo(-alignedSize, alignedY);
+        this.state.ctx.lineTo(alignedSize, alignedY);
+        
+        // Vertical line
+        const alignedX = Math.round(0 * this.state.scale) / this.state.scale;
+        this.state.ctx.moveTo(alignedX, -alignedSize);
+        this.state.ctx.lineTo(alignedX, alignedSize);
+        
+        this.state.ctx.stroke();
     }
 }

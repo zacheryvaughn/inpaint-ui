@@ -1,19 +1,20 @@
 import { CONFIG } from './config.js';
-import MaskRenderer from './MaskRenderer.js';
-import OutpaintMask from './OutpaintMask.js';
+import { CanvasFactory } from './utils/CanvasFactory.js';
+import { CoordinateSystem } from './utils/CoordinateSystem.js';
+import { Mask } from './Mask.js';
 
 export default class DraggableImage {
     constructor(imageUrl, canvasState) {
-        this.x = 0
+        this.x = 0;
         this.y = 0;
         this.isDragging = false;
         this.isLoaded = false;
         this.canvasState = canvasState;
-        this.currentMode = 'inpaint'; // Add this line
+        this.currentMode = 'inpaint';
         
         this.setupImage(imageUrl);
         this.setupCanvases();
-        this.outpaintMask = null; // Add this line
+        this.outpaintMask = null;
     }
 
     setupImage(imageUrl) {
@@ -23,10 +24,14 @@ export default class DraggableImage {
     }
 
     setupCanvases() {
-        this.backgroundCanvas = document.createElement('canvas');
-        this.backgroundCtx = this.backgroundCanvas.getContext('2d');
-        this.paintCanvas = document.createElement('canvas');
-        this.paintCtx = this.paintCanvas.getContext('2d');
+        // Create canvases with initial dimensions
+        const { canvas: backgroundCanvas, ctx: backgroundCtx } = CanvasFactory.createCanvas(1, 1);
+        const { canvas: paintCanvas, ctx: paintCtx } = CanvasFactory.createCanvas(1, 1);
+        
+        this.backgroundCanvas = backgroundCanvas;
+        this.backgroundCtx = backgroundCtx;
+        this.paintCanvas = paintCanvas;
+        this.paintCtx = paintCtx;
     }
 
     handleImageLoad() {
@@ -39,17 +44,23 @@ export default class DraggableImage {
         this.snapToGrid();
         
         // Initialize outpaint mask after image is loaded
-        this.outpaintMask = new OutpaintMask(this, this.canvasState);
+        this.outpaintMask = new Mask(this, this.canvasState);
         
         this.canvasState?.scheduleRedraw();
     }
 
     initializeCanvases() {
-        [this.backgroundCanvas, this.paintCanvas].forEach(canvas => {
-            canvas.width = this.width;
-            canvas.height = this.height;
-            canvas.getContext('2d').clearRect(0, 0, this.width, this.height);
-        });
+        if (!this.width || !this.height) return;
+        
+        // Resize background canvas
+        this.backgroundCanvas.width = this.width;
+        this.backgroundCanvas.height = this.height;
+        CanvasFactory.clearCanvas(this.backgroundCtx, this.width, this.height);
+        
+        // Resize paint canvas
+        this.paintCanvas.width = this.width;
+        this.paintCanvas.height = this.height;
+        CanvasFactory.clearCanvas(this.paintCtx, this.width, this.height);
     }
 
     centerImage() {
@@ -66,11 +77,10 @@ export default class DraggableImage {
         );
     }
 
-    // Add this new method
     setMode(mode) {
         this.currentMode = mode;
         if (mode === 'outpaint' && !this.outpaintMask && this.isLoaded) {
-            this.outpaintMask = new OutpaintMask(this, this.canvasState);
+            this.outpaintMask = new Mask(this, this.canvasState);
             // Initialize with minimum size
             this.outpaintMask.extends = {
                 top: CONFIG.OUTPAINT.MIN_SIZE,
@@ -82,43 +92,59 @@ export default class DraggableImage {
         }
     }
 
-    // In DraggableImage.js, modify the draw method:
     draw(ctx) {
-        if (!this.isLoaded) return;
+        if (!this.isLoaded || !this.width || !this.height) return;
+
+        // Align coordinates to pixel boundaries for crisp rendering
+        const alignedX = Math.round(this.x * this.canvasState.scale) / this.canvasState.scale;
+        const alignedY = Math.round(this.y * this.canvasState.scale) / this.canvasState.scale;
+        
+        ctx.save();
         
         // Draw the base image
-        ctx.drawImage(this.image, this.x, this.y, this.width, this.height);
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(this.image, alignedX, alignedY, this.width, this.height);
 
         if (this.canvasState.isPreviewingMask) {
-            const maskRenderer = new MaskRenderer();
-            const previewCanvas = this.currentMode === 'inpaint' ? 
-                maskRenderer.renderMask(this.image, this.paintCanvas) :
-                this.outpaintMask.getMaskCanvas();
-            
-            if (this.currentMode === 'inpaint') {
-                ctx.drawImage(previewCanvas, this.x, this.y);
-            } else {
+            if (this.currentMode === 'inpaint' && this.paintCanvas.width > 0 && this.paintCanvas.height > 0) {
+                ctx.drawImage(this.paintCanvas, alignedX, alignedY);
+            } else if (this.outpaintMask) {
                 // For outpaint, we need to account for the extended canvas size
-                ctx.drawImage(previewCanvas,
-                    this.x - this.outpaintMask.extends.left,
-                    this.y - this.outpaintMask.extends.top,
-                    this.width + this.outpaintMask.extends.left + this.outpaintMask.extends.right,
-                    this.height + this.outpaintMask.extends.top + this.outpaintMask.extends.bottom
+                const extendedX = alignedX - this.outpaintMask.extends.left;
+                const extendedY = alignedY - this.outpaintMask.extends.top;
+                const extendedWidth = this.width + this.outpaintMask.extends.left + this.outpaintMask.extends.right;
+                const extendedHeight = this.height + this.outpaintMask.extends.top + this.outpaintMask.extends.bottom;
+                
+                ctx.drawImage(
+                    this.outpaintMask.getMaskCanvas(),
+                    Math.round(extendedX * this.canvasState.scale) / this.canvasState.scale,
+                    Math.round(extendedY * this.canvasState.scale) / this.canvasState.scale,
+                    extendedWidth,
+                    extendedHeight
                 );
             }
         } else {
             // Normal painting mode
             if (this.currentMode === 'inpaint') {
+                // Draw paint background
                 ctx.save();
-                ctx.globalAlpha = CONFIG.PAINT.BACKGROUND.OPACITY;
-                ctx.fillStyle = CONFIG.PAINT.BACKGROUND.COLOR;
-                ctx.fillRect(this.x, this.y, this.width, this.height);
+                CanvasFactory.setupCanvasContext(ctx, {
+                    globalAlpha: CONFIG.PAINT.BACKGROUND.OPACITY,
+                    fillStyle: CONFIG.PAINT.BACKGROUND.COLOR
+                });
+                ctx.fillRect(alignedX, alignedY, this.width, this.height);
                 ctx.restore();
                 
+                // Draw paint strokes
                 ctx.save();
-                ctx.globalAlpha = CONFIG.PAINT.BRUSH.OPACITY;
-                ctx.fillStyle = CONFIG.PAINT.BRUSH.COLOR;
-                ctx.drawImage(this.paintCanvas, this.x, this.y);
+                CanvasFactory.setupCanvasContext(ctx, {
+                    globalAlpha: CONFIG.PAINT.BRUSH.OPACITY,
+                    fillStyle: CONFIG.PAINT.BRUSH.COLOR,
+                    imageSmoothingEnabled: true,
+                    imageSmoothingQuality: 'high'
+                });
+                ctx.drawImage(this.paintCanvas, alignedX, alignedY);
                 ctx.restore();
             } else if (this.outpaintMask) {
                 this.outpaintMask.draw(ctx);
@@ -126,9 +152,9 @@ export default class DraggableImage {
         }
         
         this.drawCoordinates(ctx);
+        ctx.restore();
     }
 
-    // Add this new method
     getMaskCanvas() {
         return this.currentMode === 'inpaint' ? 
             this.paintCanvas : 
@@ -136,18 +162,35 @@ export default class DraggableImage {
     }
 
     drawCoordinates(ctx) {
-        ctx.font = CONFIG.IMAGE.FONT;
-        ctx.fillStyle = CONFIG.IMAGE.TEXT_COLOR;
+        ctx.save();
+        CanvasFactory.setupCanvasContext(ctx, {
+            font: CONFIG.IMAGE.FONT,
+            fillStyle: CONFIG.IMAGE.TEXT_COLOR,
+            textBaseline: 'top',
+            textAlign: 'left'
+        });
+
+        const alignedX = Math.round(this.x * this.canvasState.scale) / this.canvasState.scale;
+        const alignedY = Math.round(this.y * this.canvasState.scale) / this.canvasState.scale;
+        const textX = alignedX + CONFIG.IMAGE.TEXT_OFFSET_X;
+        const textY = alignedY + CONFIG.IMAGE.TEXT_OFFSET_Y;
+
+        // Align text position to pixel boundaries
+        const alignedTextX = Math.round(textX * this.canvasState.scale) / this.canvasState.scale;
+        const alignedTextY = Math.round(textY * this.canvasState.scale) / this.canvasState.scale;
+
         ctx.fillText(
             `X: ${Math.round(this.x)}, Y: ${Math.round(this.y * -1)}`,
-            this.x + CONFIG.IMAGE.TEXT_OFFSET_X,
-            this.y + CONFIG.IMAGE.TEXT_OFFSET_Y
+            alignedTextX,
+            alignedTextY
         );
+        ctx.restore();
     }
 
     snapToGrid() {
-        this.x = Math.round(this.x / CONFIG.IMAGE.SNAP_SIZE) * CONFIG.IMAGE.SNAP_SIZE;
-        this.y = Math.round(this.y / CONFIG.IMAGE.SNAP_SIZE) * CONFIG.IMAGE.SNAP_SIZE;
+        const snapped = CoordinateSystem.snapToGrid(this.x, this.y, CONFIG.IMAGE.SNAP_SIZE);
+        this.x = snapped.x;
+        this.y = snapped.y;
     }
 
     getPaintContext() {

@@ -1,4 +1,6 @@
 import { CONFIG } from './config.js';
+import { CanvasFactory } from './utils/CanvasFactory.js';
+import { CoordinateSystem } from './utils/CoordinateSystem.js';
 
 export default class CanvasState {
     constructor(canvasId) {
@@ -88,9 +90,7 @@ export default class CanvasState {
 
     resizeCanvasToDisplaySize() {
         const { clientWidth: width, clientHeight: height } = this.canvas;
-        this.canvas.width = width * this.pixelRatio;
-        this.canvas.height = height * this.pixelRatio;
-        this.ctx.scale(this.pixelRatio, this.pixelRatio);
+        CanvasFactory.resizeCanvas(this.canvas, width, height, this.pixelRatio);
     }
 
     centerOrigin() {
@@ -104,10 +104,6 @@ export default class CanvasState {
     }
 
     getWorldCoordinates(clientX, clientY) {
-        const rect = this.canvas.getBoundingClientRect();
-        return {
-            x: (clientX - rect.left) * this.pixelRatio / this.scale - this.originX / this.scale,
-            y: (clientY - rect.top) * this.pixelRatio / this.scale - this.originY / this.scale
-        };
+        return CoordinateSystem.worldToCanvas(clientX, clientY, this);
     }
 }

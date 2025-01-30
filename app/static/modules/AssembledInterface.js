@@ -2,9 +2,12 @@ import { CONFIG } from './config.js';
 import CanvasState from './CanvasState.js';
 import DraggableImage from './DraggableImage.js';
 import GridRenderer from './GridRenderer.js';
-import MaskRenderer from './MaskRenderer.js';
 import PaintManager from './PaintManager.js';
 import Events from './Events.js';
+import { CanvasFactory } from './utils/CanvasFactory.js';
+import { MaskPreviewManager } from './utils/MaskPreviewManager.js';
+import { ImageImportManager } from './utils/ImageImportManager.js';
+import { Mask } from './Mask.js';
 
 class AssembledInterface extends CanvasState {
     constructor(canvasId) {
@@ -15,92 +18,19 @@ class AssembledInterface extends CanvasState {
         this.dragOffset = { x: 0, y: 0 };
         this.paintManager = new PaintManager(this);
         this.currentTool = 'move';
-        this.isPreviewingMask = false;
         this.originalConfig = null;
         this.currentMode = 'inpaint';
         this.isDraggingMask = false;
         this.events = new Events();
-        this.previewImage = null;
+        this.maskPreviewManager = new MaskPreviewManager(this, this.events);
+        this.imageImportManager = new ImageImportManager(this);
 
         // Setup socket event listeners
-        this.events.socket.on('mask_export_response', (data) => {
-            // Create temporary link and trigger download
-            const link = document.createElement('a');
-            link.download = 'mask.png';
-            link.href = data.blurred_mask;
-            link.click();
-        });
+        this.setupSocketListeners();
 
-        this.events.socket.on('mask_preview_response', (data) => {
-            // Create an image from the blurred mask
-            const img = new Image();
-            img.onload = () => {
-                this.previewImage = img;
-                this.scheduleRedraw();
-            };
-            img.src = data.blurred_mask;
-        });
-
-        this.setupImageImport();
         this.setupToolSelection();
         this.setupPreviewButton();
         this.setupModeSelection();
-    }
-
-    setupImageImport() {
-        const importButton = document.getElementById('import-operation');
-        const imageInput = document.getElementById('imageInput');
-        
-        importButton.addEventListener('click', () => imageInput.click());
-        imageInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file && file.type.startsWith('image/')) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const img = new Image();
-                    img.onload = () => {
-                        // Calculate dimensions that are divisible by 8
-                        const newWidth = Math.floor(img.naturalWidth / 8) * 8;
-                        const newHeight = Math.floor(img.naturalHeight / 8) * 8;
-                        
-                        // Create a temporary canvas for cropping
-                        const tempCanvas = document.createElement('canvas');
-                        tempCanvas.width = newWidth;
-                        tempCanvas.height = newHeight;
-                        const tempCtx = tempCanvas.getContext('2d');
-                        
-                        // Draw the image centered in the new dimensions
-                        tempCtx.drawImage(img, 
-                            0, 0, img.naturalWidth, img.naturalHeight,  // Source rect
-                            0, 0, newWidth, newHeight                   // Dest rect
-                        );
-                        
-                        // Convert the cropped canvas to a data URL
-                        const croppedImageUrl = tempCanvas.toDataURL('image/png');
-                        
-                        // Create new DraggableImage with the cropped image
-                        const newImage = new DraggableImage(croppedImageUrl, this);
-                        newImage.setMode(this.currentMode);
-                        this.images.push(newImage);
-                        this.scheduleRedraw();
-                    };
-                    img.src = e.target.result;
-                };
-                reader.readAsDataURL(file);
-                imageInput.value = '';
-            }
-        });
-    }
-
-    handleImageImport(e) {
-        const file = e.target.files[0];
-        if (file && file.type.startsWith('image/')) {
-            const imageUrl = URL.createObjectURL(file);
-            const newImage = new DraggableImage(imageUrl, this);
-            this.images.push(newImage);
-            this.scheduleRedraw();
-            e.target.value = '';
-        }
     }
 
     setupModeSelection() {
@@ -236,66 +166,41 @@ class AssembledInterface extends CanvasState {
         this.paintManager.setTool(selectedTool);
     }
 
-    setupPreviewButton() {
-        // Setup blur radius slider
-        const blurRadiusSlider = document.getElementById('blurRadius');
-        const blurRadiusValue = document.getElementById('blurRadiusValue');
-        const showPreview = () => {
-            if (this.images.length === 0) return;
-
-            const image = this.images[this.images.length - 1];
-            let maskCanvas;
-
-            if (this.currentMode === 'outpaint' && image.outpaintMask) {
-                // For outpaint mode, use the outpaint mask
-                const mask = image.outpaintMask;
-                maskCanvas = mask.getMaskCanvas();
+    setupSocketListeners() {
+        // Handle mask export response
+        this.events.socket.on('mask_export_response', (data) => {
+            console.log('Received mask_export_response:', data);
+            if (data.success) {
+                // Show success message
+                const message = document.createElement('div');
+                message.style.cssText = `
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    background: var(--shade-800);
+                    color: white;
+                    padding: 12px 20px;
+                    border-radius: 4px;
+                    z-index: 1000;
+                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+                `;
+                message.textContent = `Saved:\n- Mask: mask_outputs/${data.mask_filename}\n- Source: source_outputs/${data.source_filename}`;
+                message.style.whiteSpace = 'pre-line';
+                document.body.appendChild(message);
+                
+                // Remove message after 3 seconds
+                setTimeout(() => {
+                    document.body.removeChild(message);
+                }, 3000);
             } else {
-                // For inpaint mode, use the existing mask renderer
-                const maskRenderer = new MaskRenderer();
-                maskCanvas = maskRenderer.renderMask(image.image, image.paintCanvas);
+                console.error('Mask export failed:', data);
             }
-
-            // Get current blur radius
-            const blurRadius = parseInt(blurRadiusSlider.value);
-
-            // Convert canvas to base64 PNG and send via socket
-            const maskPngData = maskCanvas.toDataURL('image/png');
-            this.events.socket.emit('mask_preview', {
-                mask: maskPngData,
-                mode: this.currentMode,
-                blurRadius: blurRadius
-            });
-
-            this.isPreviewingMask = true;
-            this.scheduleRedraw();
-        };
-
-        const resetPreview = () => {
-            this.isPreviewingMask = false;
-            this.previewImage = null;
-            this.scheduleRedraw();
-        };
-
-        // Setup blur radius slider
-        blurRadiusSlider.addEventListener('input', (e) => {
-            blurRadiusValue.textContent = e.target.value;
-            showPreview();
         });
+    }
 
-        blurRadiusSlider.addEventListener('mouseup', resetPreview);
-        blurRadiusSlider.addEventListener('mouseleave', resetPreview);
-
-        const previewButton = document.getElementById('preview-mask');
-        previewButton.addEventListener('mousedown', showPreview);
-        previewButton.addEventListener('mouseup', resetPreview);
-        previewButton.addEventListener('mouseleave', resetPreview);
-
-        previewButton.addEventListener('mouseup', resetPreview);
-        previewButton.addEventListener('mouseleave', resetPreview);
-
+    setupPreviewButton() {
         const exportButton = document.getElementById('export-operation');
-        exportButton.addEventListener('click', () => {
+        exportButton.addEventListener('click', async () => {
             if (this.images.length === 0) return;
 
             const image = this.images[this.images.length - 1];
@@ -306,21 +211,72 @@ class AssembledInterface extends CanvasState {
                 const mask = image.outpaintMask;
                 maskCanvas = mask.getMaskCanvas();
             } else {
-                // For inpaint mode, use the existing mask renderer
-                const maskRenderer = new MaskRenderer();
-                maskCanvas = maskRenderer.renderMask(image.image, image.paintCanvas);
+                // For inpaint mode, use Mask directly
+                maskCanvas = Mask.renderInpaintMask(image.image, image.paintCanvas);
             }
 
             // Get current blur radius
-            const blurRadius = parseInt(blurRadiusSlider.value);
+            const blurRadius = parseInt(document.getElementById('blurRadius').value);
 
-            // Convert canvas to base64 PNG and send via socket
+            // Convert mask canvas to base64 PNG
             const maskPngData = maskCanvas.toDataURL('image/png');
-            this.events.socket.emit('mask_export', {
+            
+            // Prepare source image based on mode
+            let sourceImageData;
+            if (this.currentMode === 'outpaint' && image.outpaintMask) {
+                // For outpaint, create image on gray background matching mask size
+                const mask = image.outpaintMask;
+                const extendedWidth = image.width + mask.extends.left + mask.extends.right;
+                const extendedHeight = image.height + mask.extends.top + mask.extends.bottom;
+                
+                const sourceCanvas = CanvasFactory.createImageOnGrayBackground(
+                    image.image,
+                    extendedWidth,
+                    extendedHeight,
+                    mask.extends.left,
+                    mask.extends.top
+                );
+                sourceImageData = sourceCanvas.toDataURL('image/png');
+            } else {
+                // For inpaint, use original image directly
+                sourceImageData = image.image.src;
+            }
+            
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const exportData = {
                 mask: maskPngData,
+                sourceImage: sourceImageData,
                 mode: this.currentMode,
-                blurRadius: blurRadius
-            });
+                blurRadius: blurRadius,
+                timestamp: timestamp
+            };
+            console.log("Sending mask_export event with data:", Object.keys(exportData));
+            
+            // Show loading indicator
+            const loadingMessage = document.createElement('div');
+            loadingMessage.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: var(--shade-800);
+                color: white;
+                padding: 20px;
+                border-radius: 8px;
+                z-index: 1000;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            `;
+            loadingMessage.textContent = 'Saving images...';
+            document.body.appendChild(loadingMessage);
+
+            try {
+                await this.events.emit('mask_export', exportData);
+            } catch (error) {
+                console.error('Failed to export mask:', error);
+                // Error is already shown by Events class
+            } finally {
+                document.body.removeChild(loadingMessage);
+            }
         });
     }
 
@@ -464,43 +420,57 @@ class AssembledInterface extends CanvasState {
     }
 
     draw() {
+        // Clear the entire canvas and set background
+        this.ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform
         this.ctx.fillStyle = CONFIG.CANVAS.BACKGROUND_COLOR;
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-        this.ctx.save();
+
+        // Apply main transform for world space
         this.ctx.setTransform(this.scale, 0, 0, this.scale, this.originX, this.originY);
+
+        // Draw grid
+        this.ctx.save();
         this.gridRenderer.draw();
+        this.ctx.restore();
         
-        // Draw base images and handle preview
+        // Draw images and masks
         this.images.forEach(img => {
+            this.ctx.save();
+            
             // Draw the base image
             this.ctx.drawImage(img.image, img.x, img.y, img.width, img.height);
             
-            // If previewing and we have a preview image, draw it
-            if (this.isPreviewingMask && this.previewImage) {
+            // Handle mask preview
+            if (this.maskPreviewManager.isPreviewActive() && this.maskPreviewManager.getPreviewImage()) {
                 if (this.currentMode === 'inpaint') {
-                    this.ctx.drawImage(this.previewImage, img.x, img.y);
+                    this.ctx.drawImage(this.maskPreviewManager.getPreviewImage(), img.x, img.y);
                 } else if (img.outpaintMask) {
-                    // For outpaint, account for the extended canvas size
                     this.ctx.drawImage(
-                        this.previewImage,
+                        this.maskPreviewManager.getPreviewImage(),
                         img.x - img.outpaintMask.extends.left,
                         img.y - img.outpaintMask.extends.top,
                         img.width + img.outpaintMask.extends.left + img.outpaintMask.extends.right,
                         img.height + img.outpaintMask.extends.top + img.outpaintMask.extends.bottom
                     );
                 }
-            } else if (!this.isPreviewingMask) {
+            } else if (!this.maskPreviewManager.isPreviewActive()) {
                 // Normal painting mode
                 if (this.currentMode === 'inpaint') {
+                    // Draw paint background
                     this.ctx.save();
-                    this.ctx.globalAlpha = CONFIG.PAINT.BACKGROUND.OPACITY;
-                    this.ctx.fillStyle = CONFIG.PAINT.BACKGROUND.COLOR;
+                    CanvasFactory.setupCanvasContext(this.ctx, {
+                        globalAlpha: CONFIG.PAINT.BACKGROUND.OPACITY,
+                        fillStyle: CONFIG.PAINT.BACKGROUND.COLOR
+                    });
                     this.ctx.fillRect(img.x, img.y, img.width, img.height);
                     this.ctx.restore();
                     
+                    // Draw paint strokes
                     this.ctx.save();
-                    this.ctx.globalAlpha = CONFIG.PAINT.BRUSH.OPACITY;
-                    this.ctx.fillStyle = CONFIG.PAINT.BRUSH.COLOR;
+                    CanvasFactory.setupCanvasContext(this.ctx, {
+                        globalAlpha: CONFIG.PAINT.BRUSH.OPACITY,
+                        fillStyle: CONFIG.PAINT.BRUSH.COLOR
+                    });
                     this.ctx.drawImage(img.paintCanvas, img.x, img.y);
                     this.ctx.restore();
                 } else if (img.outpaintMask) {
@@ -509,9 +479,8 @@ class AssembledInterface extends CanvasState {
             }
             
             img.drawCoordinates(this.ctx);
+            this.ctx.restore();
         });
-        
-        this.ctx.restore();
     }
 }
 
